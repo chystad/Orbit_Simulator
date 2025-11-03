@@ -63,6 +63,13 @@ class SimData:
     def write_data_to_file(self, timestamp_str: str, sim_type: str) -> None:
         """
         Saves the simulation data to DATA_SAVE_FOLDER_PATH/<filename>.h5
+        The output data file will have the following structure:
+
+        /time           (1,n)
+        /objects/
+            <satellite_name>/
+                pos     (3,n)
+                vel     (3,n)
         """
         # Ensure target directory exists
         DATA_SAVE_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
@@ -77,15 +84,27 @@ class SimData:
         time = self.extract_time_vec()
 
         with h5py.File(file_path, "w") as f:
+            # Ensure the time vector has the correct shape
+            if time.ndim == 1:
+                time = time.reshape(1,-1)
+            elif time.shape[1] == 1:
+                time = time.reshape(1,-1)
+            elif time.shape[0] == 1 and len(time) > 0:
+                time = time
+            else:
+                raise ValueError("Could not convert time vector into (1,n) dimension")
+            
             f.create_dataset("time", data=time, compression="gzip", compression_opts=4, shuffle=True)
             g_objs = f.create_group("objects")
 
             for obj_data in self.sim_data:
                 g = g_objs.create_group(obj_data.satellite_name)
 
-                # ensure shape (n, 3): transpose if your arrays are (3, n)
-                pos = obj_data.pos.T if obj_data.pos.shape[0] == 3 else obj_data.pos
-                vel = obj_data.vel.T if obj_data.vel.shape[0] == 3 else obj_data.vel
+                # Ensure shape (3,n): transpose the arrays are (n,3)
+                print(obj_data.pos.shape)
+                pos = obj_data.pos.T if obj_data.pos.shape[1] == 3 else obj_data.pos
+                vel = obj_data.vel.T if obj_data.vel.shape[1] == 3 else obj_data.vel
+                print(pos.shape)
 
                 g.create_dataset("pos", data=pos, compression="gzip", compression_opts=4, shuffle=True)
                 g.create_dataset("vel", data=vel, compression="gzip", compression_opts=4, shuffle=True)
