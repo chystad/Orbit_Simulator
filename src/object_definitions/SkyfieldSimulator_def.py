@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 # from object_definitions.BaseSimulator_def import BaseSimulator
 from object_definitions.Config_def import Config
 from object_definitions.Satellite_def import Satellite
-from object_definitions.SimObjectData_def import SimObjectData
+from object_definitions.SimData_def import SimObjData, SimData
 
 from skyfield.timelib import Time
 from skyfield.api import EarthSatellite, load
@@ -71,7 +71,7 @@ class SkyfieldSimulator():
         self.duration: int = duration
         self.deltaT: int = deltaT
         self.skf_satellites: list[EarthSatellite] = skf_satellites
-        self.sim_data: Optional[list[SimObjectData]] = None
+        self.sim_data: Optional[SimData] = None
 
         logging.debug("Skyfield simulation setup complete")
 
@@ -102,7 +102,7 @@ class SkyfieldSimulator():
         #################################################################################
         # Run sgp4 propagation to get position and velocity at all simualtion timesteps #
         #################################################################################
-        sim_data = []
+        sim_data: list[SimObjData] = []
         for i, skf_sat in enumerate(skf_satellites):
             # Verify that we are iterating over the satellites in the correct order
             if not isinstance(skf_sat.name, str):
@@ -124,7 +124,7 @@ class SkyfieldSimulator():
             positions_eci = np.transpose(position)
             velocities_eci = np.transpose(velocity)
 
-            sim_object_data = SimObjectData(
+            sim_object_data = SimObjData(
                 skf_sat_name,
                 sim_offset,
                 positions_eci,
@@ -134,10 +134,25 @@ class SkyfieldSimulator():
             sim_data.append(sim_object_data)
 
         # Set SkyfieldSimulator attribute sim_data
-        self.sim_data = sim_data
+        self.sim_data = SimData(sim_data)
+
+        # Write simulation data to file
+        self.output_data()
 
         logging.debug("Skyfield simulation complete")
 
+
+    def output_data(self) -> None:
+        """
+        Write the simulation data to a file stored in data/sim_out/
+        """
+        
+        # Check that simulation data has been stored
+        if self.sim_data is None:
+            raise ValueError("Simulation data not yet generated. Call skf.run() before skf.output_data().")
+        
+        # Log data to file
+        self.sim_data.write_data_to_file(self.cfg.timestamp_str, "skf")
 
 
     def plot(self):
@@ -155,7 +170,7 @@ class SkyfieldSimulator():
         
         # Extract initial state for each of the satellites, and update the initial conditions for
         # their corresponding Satellite object in config.satellites
-        for i, sat in enumerate(self.sim_data):
+        for i, sat in enumerate(self.sim_data.sim_data):
             cfg.satellites[i].extract_initial_states_and_update(sat)
 
 

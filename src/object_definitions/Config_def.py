@@ -3,6 +3,7 @@ import logging
 import numpy as np
 from numpy.typing import NDArray
 from pathlib import Path
+from datetime import datetime
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
@@ -58,6 +59,7 @@ class Config:
             startTime
             simulationDuration
             tle_export_path
+            timestamp_str       Used in the naming of data files. str holding the real-world simulation start time.
             satellites          One Satellite instance for each satellite described in the default config.
             b_set               BasiliskSettings instance describing the Basilisk simulation settings
             s_set               SkyfieldSettings instance describing the Skyfield simulation settings     
@@ -98,6 +100,7 @@ class Config:
         self.startTime = startTime_str
         self.simulationDuration = simulationDuration
         self.tle_export_path = tle_export_path
+        self.timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.satellites = satellites
 
         # Assign BasiliskSettings instance to b_set attribute

@@ -4,9 +4,9 @@ from typing import Optional
 from numpy.typing import NDArray
 
 from object_definitions.TwoLineElement_def import TLE
-from object_definitions.SimObjectData_def import SimObjectData
+from object_definitions.SimData_def import SimObjData
 
-from Basilisk.simulation import spiceInterface # For basilsk time format
+# from Basilisk.simulation import spiceInterface # For basilsk time format
 
 
 
@@ -51,7 +51,7 @@ class Satellite:
         pass
 
 
-    def extract_initial_states_and_update(self, sim_object_data: SimObjectData) -> None:
+    def extract_initial_states_and_update(self, sim_object_data: SimObjData) -> None:
 
         logging.debug(f"Extracting initial states for {sim_object_data.satellite_name}")
 
