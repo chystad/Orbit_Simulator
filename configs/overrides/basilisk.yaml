@@ -1,0 +1,8 @@
+# These configuration options are currently in configs/default.yaml
+BASILISK_SIMULATION:
+  useSphericalHarmonics: true
+  orbitCase: GEO # GEO, GTO, LEO (default)
+  show_plots: true
+  show_progress_bar: true
+  deltaT: 10.0 # Solver time step [seconds]
+  use_custom_initial_state: true # might rename to something with 'override' 
