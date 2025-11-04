@@ -3,11 +3,12 @@ import logging
 import numpy as np
 from pathlib import Path
 
+from object_definitions.Config_def import Config
 from object_definitions.SimData_def import SimData, SimObjData, DATA_SAVE_FOLDER_PATH
 
 
 class DataLoader:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
 
@@ -110,6 +111,38 @@ class DataLoader:
                 sim_obj_list.append(sim_obj)
 
         return SimData(sim_obj_list)
+    
+
+    def load_and_separate_data(self, datafiles_to_plot: list[str]) -> tuple[SimData, SimData]:
+        """
+        Read the 2 datafiles listed in 'datafiles_to_plot' and return one SimData object for each simulation framework. 
+        The function expects 'datafiles_to_plot' to contain 2 strings, one containing the Skyfield identifyer 'skf', 
+        and the other containing the Basilisk identifyer 'bsk'.
+
+        Args:
+            cfg (Config): simulation config object
+            datafiles_to_plot (list[str]): list holding 2 filenames of data contained in 'data/sim_data'. 
+                One filename must contain the identifyer 'skf', and the other 'bsk'.
+        """
+        assert len(datafiles_to_plot) == 2
+        
+        # Check which simulator generated the data
+        skf_sim_data = None
+        bsk_sim_data = None
+        for datafile in datafiles_to_plot:
+            sim_data = self.load_sim_data_file(datafile)
+            if "skf" in datafile:
+                skf_sim_data = sim_data
+            elif "bsk" in datafile:
+                bsk_sim_data = sim_data
+            else:
+                raise ValueError(f"Neither 'skf' or 'bsk' is present in datafile name: {datafile}"
+                                f"The datafile cannot be categorized as skyfield or basilisk simulation output.")
+            
+        if skf_sim_data is None or bsk_sim_data is None:
+            raise ValueError(f"one or both strings: 'skf', 'bsk' with was not found in a datafile starting with <cfg.timestamp_str>") 
+        
+        return skf_sim_data, bsk_sim_data
     
 
     @staticmethod

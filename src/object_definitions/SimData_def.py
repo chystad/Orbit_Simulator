@@ -2,6 +2,7 @@ import h5py
 import logging
 import numpy as np
 from pathlib import Path
+from typing import Optional
 from datetime import datetime
 from numpy.typing import NDArray
 from dataclasses import dataclass
@@ -19,6 +20,14 @@ class SimObjData:
     pos: NDArray[np.float64] # (3,n)
     vel: NDArray[np.float64] # (3,n)
 
+@dataclass_json
+@dataclass
+class RelObjData:
+    satellite_name: str
+    time: NDArray[np.float64] # (1,n)
+    rel_pos: NDArray[np.float64] # (3,n)
+    rel_vel: NDArray[np.float64] # (3,n)
+
 
 
 class SimData:
@@ -30,6 +39,7 @@ class SimData:
         
         ATTRIBUTES:
             sim_data (list[SimObjData])
+            rel_data (Optional[list[RelObjData]])
 
         METHODS:
             extract_time_vec
@@ -38,7 +48,8 @@ class SimData:
         =========================================================================================================
         """
         
-        self.sim_data = all_sim_obj_data
+        self.sim_data: list[SimObjData] = all_sim_obj_data
+        self.rel_data: Optional = None
         return
 
 

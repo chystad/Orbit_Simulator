@@ -12,19 +12,18 @@ PLOTTING:
   plot_prev_sim: false # TODO: NOT IMPLEMENTED. Also, 'implement func that skips simulations if this is true
   show_plots: true
   save_plots: false
-  save_path: ./plots # TODO: Move to plot.py (same as data_save_path is defined in SimData_def.py)
 
 # Global satellites and their TLE data
 # Satellite #1 will be considered as the formation Chef/Leader satellite 
 SATELLITES:
   satellite1:
-    name: "TestSat-1"
-    tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0  9000"
-    tle_line2: "2 25544  51.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
-  satellite2: 
-    name: "TestSat-2"
-    tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0    9000"
-    tle_line2: "2 25544  60.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
+    name: "Chief"
+    tle_line1: "1 51053U 22002BX  25308.62091721  .00030597  00000+0  55283-3 0  9995"    
+    tle_line2: "2 51053  97.3162  18.5553 0003625  48.0410 312.1150 15.49656913211910"    
+  satellite2:
+    name: "Follower"
+    tle_line1: "1 60531U 24149BR  25308.17016602  .00005181  00000+0  45510-3 0  9998"    
+    tle_line2: "2 60531  97.7074  22.6954 0001936  74.1043 286.0392 14.97007322 66363" 
 
 # Skyfield specific settings
 SKYFIELD:
@@ -34,3 +33,13 @@ SKYFIELD:
 BASILISK:
   config_path: configs/overrides/basilisk.yaml
 
+   
+
+  # satellite1:
+  #   name: "TestSat-1"
+  #   tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0  9000"
+  #   tle_line2: "2 25544  51.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
+  # satellite2: 
+  #   name: "TestSat-2"
+  #   tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0    9000"
+  #   tle_line2: "2 25544  60.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"

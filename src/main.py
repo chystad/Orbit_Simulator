@@ -29,9 +29,6 @@ def simualte_satellite_orbits():
     # Plot results
     plot(cfg)
 
-    # Plot 
-    # bsk.plot()
-
 
 if __name__ == "__main__":
     simualte_satellite_orbits()
