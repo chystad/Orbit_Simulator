@@ -7,11 +7,14 @@ from copy import copy
 # from object_definitions.BaseSimulator_def import BaseSimulator
 from object_definitions.Config_def import Config
 from object_definitions.Satellite_def import Satellite
+from object_definitions.SimData_def import SimData, SimObjData
 
 from Basilisk import __path__
 from Basilisk.simulation import spacecraft
 from Basilisk.utilities import (SimulationBaseClass, macros, orbitalMotion,
                                 simIncludeGravBody, unitTestSupport, vizSupport)
+
+VIZARD_SAVE_PATH = "/home/chris/code/Orbit_Simulator/data/_VizFiles/bsk_sim.bin"
 
 """
 =========================================================================================================
@@ -31,6 +34,7 @@ class BasiliskSimulator:
         scObjects       List containing all simulation objects (satellites)
         dataRecorders   List containing all simulation recorders (one for each scObject)
         planet(temp)    planet (always earth)
+        sim_data        Object containing the simulaton output data (Optional[SimData])
     =========================================================================================================
     """
     def __init__(self, cfg: Config) -> None:
@@ -95,6 +99,7 @@ class BasiliskSimulator:
         #############################
 
         # Select task and process names
+        self.sim_data = None
         self.simTaskName = "simTask"
         self.simProcessName = "simProcess"
 
@@ -270,7 +275,7 @@ class BasiliskSimulator:
         # To enable this, uncomment this line:
 
         viz = vizSupport.enableUnityVisualization(self.scSim, self.simTaskName, self.scObjects,
-                                                saveFile=__file__
+                                                saveFile=VIZARD_SAVE_PATH
                                                 # liveStream=True
                                                 )
 
@@ -373,189 +378,231 @@ class BasiliskSimulator:
         #return finalDiff, figureList
         return
         """
+
+        # Make configs easily accessible
+        d_set = self.cfg        # default config
+        b_set = self.cfg.b_set  # basilisk config
+
+        satellites = d_set.satellites
+        simulationDuration_sec = d_set.simulationDuration * 60 * 60
+        timeStep_sec = b_set.deltaT
+
+        # Create time vector and ensure shape
+        numSamples = int(simulationDuration_sec // timeStep_sec + 1)
+        t = np.asarray(np.linspace(0, simulationDuration_sec, numSamples))
+        t = t.reshape(1, -1) # is now shape: (1,n)
+
+        # Get simulation data
+        if len(satellites) != len(self.dataRecorders):
+            raise ValueError(f"Mismatch between the number of satellites in cfg.satellites({len(satellites)})"
+                             f"and the number of trajectories in self.dataRecorders ({len(self.dataRecorders)})")
+
+        sim_data: list[SimObjData] = []
+        for i, recorder in enumerate(self.dataRecorders):
+            sat_name = satellites[i].name
+            pos = np.asarray(recorder.r_BN_N)
+            vel = np.asarray(recorder.v_BN_N)
+
+            # Ensure correct dimensions for pos and vel arrays
+            pos = pos.T if pos.shape[1] == 3 else pos
+            vel = vel.T if vel.shape[1] == 3 else vel
+
+            sim_object_data = SimObjData(
+                sat_name,
+                t,
+                pos,
+                vel
+            )
+
+            sim_data.append(sim_object_data)
+
+        # Set BasiliskSimulator attribute sim_data
+        self.sim_data = SimData(sim_data)
+
+        # Write simulation data to file
+        self.output_data()
+
         logging.debug("Basilisk simulation complete")
 
 
     def output_data(self) -> None:
         """
-        Write the simulation data to a file stored in data/sim_out/
+        Write the simulation data to a file named '<cfg.timestamp_str>_bsk.h5' stored in data/sim_data/
         """
-        pass
-        
-        #### Uncomment once attribute sim_data has been defined ####
 
-        # # Check that simulation data has been stored
-        # if self.sim_data is None:
-        #     raise ValueError("Simulation data not yet generated. Call skf.run() before skf.output_data().")
+        # Check that simulation data has been stored
+        if self.sim_data is None:
+            raise ValueError("Simulation data not yet generated. Call skf.run() before skf.output_data().")
         
-        # # Log data to file
-        # self.sim_data.write_data_to_file(self.cfg.timestamp_str, "bsk")
+        # Log data to file
+        self.sim_data.write_data_to_file(self.cfg.timestamp_str, "bsk")
     
 
-    def plot(self):
-        """
-        TODO: 
-            * Create helper function for getting good plot colors. 
-                All position components of the same object should have the different shades of the same color.
-            * Modify the function to respond to show_plots
-            * Add possibility of saving the plot(s)
-            * Add more plots(?)
-        """
-        # Make configs easily accessible
-        d_set = self.cfg        # default config
-        b_set = self.cfg.b_set  # basilisk config
+    # def plot(self):
+    #     """
+    #     TODO: 
+    #         * Create helper function for getting good plot colors. 
+    #             All position components of the same object should have the different shades of the same color.
+    #         * Modify the function to respond to show_plots
+    #         * Add possibility of saving the plot(s)
+    #         * Add more plots(?)
+    #     """
+    #     # Make configs easily accessible
+    #     d_set = self.cfg        # default config
+    #     b_set = self.cfg.b_set  # basilisk config
         
-        # Create time array with all sample times [0, (simulationDuration_sec - timeStep_sec)]
-        simulationDuration_sec = d_set.simulationDuration * 60 * 60
-        timeStep_sec = b_set.deltaT
+    #     # Create time array with all sample times [0, (simulationDuration_sec - timeStep_sec)]
+    #     simulationDuration_sec = d_set.simulationDuration * 60 * 60
+    #     timeStep_sec = b_set.deltaT
 
-        numSamples = int(simulationDuration_sec // timeStep_sec + 1)
-        t = np.linspace(0, simulationDuration_sec, numSamples)
+    #     numSamples = int(simulationDuration_sec // timeStep_sec + 1)
+    #     t = np.linspace(0, simulationDuration_sec, numSamples)
 
-        # Get simulation data
-        allPosData = []
-        allVelData = []
-        numTrajectories = len(self.dataRecorders)
-        for i, recorder in enumerate(self.dataRecorders):
-            posData = recorder.r_BN_N
-            velData = recorder.v_BN_N
-
-            allPosData.append(posData)
-            allVelData.append(velData)
-
-        # Legend
-        lgnd = ['x pos [m]', 'y pos [m]', 'z pos [m]']
-
-        # Plot
-        plt.close("all")
-        plt.figure(1, figsize=(10,6))
-        fig = plt.gcf()
-
-        for i in range(numTrajectories):
-            for j in range(3):
-                plt.plot(t, allPosData[i][:, j], label=lgnd[j])
-
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-        
-
-
-    def plotOrbits(self, timeAxis, posData, velData, posData2, velData2, oe, mu, P, orbitCase, useSphericalHarmonics, planet):
-        # draw the inertial position vector components
-        plt.close("all")  # clears out plots from earlier test runs
-        plt.figure(1)
-        fig = plt.gcf()
-        ax = fig.gca()
-        ax.ticklabel_format(useOffset=False, style='plain')
-        finalDiff = 0.0
-
-        for idx in range(3):
-            plt.plot(timeAxis * macros.NANO2SEC / P, posData[:, idx] / 1000.,
-                    color=unitTestSupport.getLineColor(idx, 3),
-                    label='$r_{BN,' + str(idx) + '}$')
-        
-        if posData2 is not None:
-            for idx in range(3):
-                plt.plot(timeAxis * macros.NANO2SEC / P, posData2[:, idx] / 1000.,
-                        linestyle='--', alpha=0.7,
-                        color=unitTestSupport.getLineColor(idx, 3),
-                        label='$r^{(2)}_{BN,' + str(idx) + '}$')
-        plt.legend(loc='lower right')
+    #     # Get simulation data
+    #     allPosData = []
+    #     allVelData = []
+    #     numTrajectories = len(self.dataRecorders)
+    #     for i, recorder in enumerate(self.dataRecorders):
+    #         posData = recorder.r_BN_N
+    #         velData = recorder.v_BN_N
             
 
-        plt.legend(loc='lower right')
-        plt.xlabel('Time [orbits]')
-        plt.ylabel('Inertial Position [km]')
-        figureList = {}
-        pltName = fileName + "1" + orbitCase + str(int(useSphericalHarmonics)) + 'Earth'
-        figureList[pltName] = plt.figure(1)
+    #         allPosData.append(posData)
+    #         allVelData.append(velData)
 
-        if useSphericalHarmonics is False:
-            # draw orbit in perifocal frame
-            b = oe.a * np.sqrt(1 - oe.e * oe.e)
-            p = oe.a * (1 - oe.e * oe.e)
-            plt.figure(2, figsize=tuple(np.array((1.0, b / oe.a)) * 4.75), dpi=100)
-            plt.axis(np.array([-oe.rApoap, oe.rPeriap, -b, b]) / 1000 * 1.25)
-            # draw the planet
-            fig = plt.gcf()
-            ax = fig.gca()
+    #     # Legend
+    #     lgnd = ['x pos [m]', 'y pos [m]', 'z pos [m]']
 
-            planetColor = '#008800'
-            planetRadius = planet.radEquator / 1000
-            ax.add_artist(plt.Circle((0, 0), planetRadius, color=planetColor))
-            # draw the actual orbit
-            rData = []
-            fData = []
-            for idx in range(0, len(posData)):
-                oeData = orbitalMotion.rv2elem(mu, posData[idx], velData[idx])
-                rData.append(oeData.rmag)
-                fData.append(oeData.f + oeData.omega - oe.omega)
-            plt.plot(rData * np.cos(fData) / 1000, rData * np.sin(fData) / 1000, color='#aa0000', linewidth=3.0
-                    )
-            # draw the second spacecraft orbit if available
-            if posData2 is not None:
-                rData2 = []
-                fData2 = []
-                for idx in range(0, len(posData2)):
-                    oeData2 = orbitalMotion.rv2elem(mu, posData2[idx], velData2[idx])
-                    rData2.append(oeData2.rmag)
-                    fData2.append(oeData2.f + oeData2.omega - oe.omega)
-                plt.plot(np.array(rData2) * np.cos(fData2) / 1000, np.array(rData2) * np.sin(fData2) / 1000,
-                        linestyle='--', linewidth=2.0, color='#5555ff')
-            # draw the full osculating orbit from the initial conditions
-            fData = np.linspace(0, 2 * np.pi, 100)
-            rData = []
-            for idx in range(0, len(fData)):
-                rData.append(p / (1 + oe.e * np.cos(fData[idx])))
-            plt.plot(rData * np.cos(fData) / 1000, rData * np.sin(fData) / 1000, '--', color='#555555'
-                    )
-            plt.xlabel('$i_e$ Cord. [km]')
-            plt.ylabel('$i_p$ Cord. [km]')
-            plt.grid()
+    #     # Plot
+    #     plt.close("all")
+    #     plt.figure(1, figsize=(10,6))
+    #     fig = plt.gcf()
 
-            plt.figure(3)
-            fig = plt.gcf()
-            ax = fig.gca()
-            ax.ticklabel_format(useOffset=False, style='plain')
-            Deltar = np.empty((0, 3))
-            E0 = orbitalMotion.f2E(oe.f, oe.e)
-            M0 = orbitalMotion.E2M(E0, oe.e)
-            n = np.sqrt(mu/(oe.a*oe.a*oe.a))
-            oe2 = copy(oe)
-            for idx in range(0, len(posData)):
-                M = M0 + n * timeAxis[idx] * macros.NANO2SEC
-                Et = orbitalMotion.M2E(M, oe.e)
-                oe2.f = orbitalMotion.E2f(Et, oe.e)
-                rv, vv = orbitalMotion.elem2rv(mu, oe2)
-                Deltar = np.append(Deltar, [posData[idx] - rv], axis=0)
-            for idx in range(3):
-                plt.plot(timeAxis * macros.NANO2SEC / P, Deltar[:, idx] ,
-                        color=unitTestSupport.getLineColor(idx, 3),
-                        label=r'$\Delta r_{BN,' + str(idx) + '}$')
-            plt.legend(loc='lower right')
-            plt.xlabel('Time [orbits]')
-            plt.ylabel('Trajectory Differences [m]')
-            pltName = fileName + "3" + orbitCase + str(int(useSphericalHarmonics)) + 'Earth'
-            figureList[pltName] = plt.figure(3)
+    #     for i in range(numTrajectories):
+    #         for j in range(3):
+    #             plt.plot(t, allPosData[i][:, j], label=lgnd[j])
 
-            finalDiff = np.linalg.norm(Deltar[-1])
+    #     plt.legend()
+    #     plt.grid(True)
+    #     plt.show()
+        
 
-        else:
 
-            plt.figure(2)
-            fig = plt.gcf()
-            ax = fig.gca()
-            ax.ticklabel_format(useOffset=False, style='plain')
-            smaData = []
-            for idx in range(0, len(posData)):
-                oeData = orbitalMotion.rv2elem(mu, posData[idx], velData[idx])
-                smaData.append(oeData.a / 1000.)
-            plt.plot(timeAxis * macros.NANO2SEC / P, smaData, color='#aa0000',
-                    )
-            plt.xlabel('Time [orbits]')
-            plt.ylabel('SMA [km]')
+    # def plotOrbits(self, timeAxis, posData, velData, posData2, velData2, oe, mu, P, orbitCase, useSphericalHarmonics, planet):
+    #     # draw the inertial position vector components
+    #     plt.close("all")  # clears out plots from earlier test runs
+    #     plt.figure(1)
+    #     fig = plt.gcf()
+    #     ax = fig.gca()
+    #     ax.ticklabel_format(useOffset=False, style='plain')
+    #     finalDiff = 0.0
 
-        pltName = fileName + "2" + orbitCase + str(int(useSphericalHarmonics)) + 'Earth'
-        figureList[pltName] = plt.figure(2)
-        return figureList, finalDiff
+    #     for idx in range(3):
+    #         plt.plot(timeAxis * macros.NANO2SEC / P, posData[:, idx] / 1000.,
+    #                 color=unitTestSupport.getLineColor(idx, 3),
+    #                 label='$r_{BN,' + str(idx) + '}$')
+        
+    #     if posData2 is not None:
+    #         for idx in range(3):
+    #             plt.plot(timeAxis * macros.NANO2SEC / P, posData2[:, idx] / 1000.,
+    #                     linestyle='--', alpha=0.7,
+    #                     color=unitTestSupport.getLineColor(idx, 3),
+    #                     label='$r^{(2)}_{BN,' + str(idx) + '}$')
+    #     plt.legend(loc='lower right')
+            
+
+    #     plt.legend(loc='lower right')
+    #     plt.xlabel('Time [orbits]')
+    #     plt.ylabel('Inertial Position [km]')
+    #     figureList = {}
+    #     pltName = fileName + "1" + orbitCase + str(int(useSphericalHarmonics)) + 'Earth'
+    #     figureList[pltName] = plt.figure(1)
+
+    #     if useSphericalHarmonics is False:
+    #         # draw orbit in perifocal frame
+    #         b = oe.a * np.sqrt(1 - oe.e * oe.e)
+    #         p = oe.a * (1 - oe.e * oe.e)
+    #         plt.figure(2, figsize=tuple(np.array((1.0, b / oe.a)) * 4.75), dpi=100)
+    #         plt.axis(np.array([-oe.rApoap, oe.rPeriap, -b, b]) / 1000 * 1.25)
+    #         # draw the planet
+    #         fig = plt.gcf()
+    #         ax = fig.gca()
+
+    #         planetColor = '#008800'
+    #         planetRadius = planet.radEquator / 1000
+    #         ax.add_artist(plt.Circle((0, 0), planetRadius, color=planetColor))
+    #         # draw the actual orbit
+    #         rData = []
+    #         fData = []
+    #         for idx in range(0, len(posData)):
+    #             oeData = orbitalMotion.rv2elem(mu, posData[idx], velData[idx])
+    #             rData.append(oeData.rmag)
+    #             fData.append(oeData.f + oeData.omega - oe.omega)
+    #         plt.plot(rData * np.cos(fData) / 1000, rData * np.sin(fData) / 1000, color='#aa0000', linewidth=3.0
+    #                 )
+    #         # draw the second spacecraft orbit if available
+    #         if posData2 is not None:
+    #             rData2 = []
+    #             fData2 = []
+    #             for idx in range(0, len(posData2)):
+    #                 oeData2 = orbitalMotion.rv2elem(mu, posData2[idx], velData2[idx])
+    #                 rData2.append(oeData2.rmag)
+    #                 fData2.append(oeData2.f + oeData2.omega - oe.omega)
+    #             plt.plot(np.array(rData2) * np.cos(fData2) / 1000, np.array(rData2) * np.sin(fData2) / 1000,
+    #                     linestyle='--', linewidth=2.0, color='#5555ff')
+    #         # draw the full osculating orbit from the initial conditions
+    #         fData = np.linspace(0, 2 * np.pi, 100)
+    #         rData = []
+    #         for idx in range(0, len(fData)):
+    #             rData.append(p / (1 + oe.e * np.cos(fData[idx])))
+    #         plt.plot(rData * np.cos(fData) / 1000, rData * np.sin(fData) / 1000, '--', color='#555555'
+    #                 )
+    #         plt.xlabel('$i_e$ Cord. [km]')
+    #         plt.ylabel('$i_p$ Cord. [km]')
+    #         plt.grid()
+
+    #         plt.figure(3)
+    #         fig = plt.gcf()
+    #         ax = fig.gca()
+    #         ax.ticklabel_format(useOffset=False, style='plain')
+    #         Deltar = np.empty((0, 3))
+    #         E0 = orbitalMotion.f2E(oe.f, oe.e)
+    #         M0 = orbitalMotion.E2M(E0, oe.e)
+    #         n = np.sqrt(mu/(oe.a*oe.a*oe.a))
+    #         oe2 = copy(oe)
+    #         for idx in range(0, len(posData)):
+    #             M = M0 + n * timeAxis[idx] * macros.NANO2SEC
+    #             Et = orbitalMotion.M2E(M, oe.e)
+    #             oe2.f = orbitalMotion.E2f(Et, oe.e)
+    #             rv, vv = orbitalMotion.elem2rv(mu, oe2)
+    #             Deltar = np.append(Deltar, [posData[idx] - rv], axis=0)
+    #         for idx in range(3):
+    #             plt.plot(timeAxis * macros.NANO2SEC / P, Deltar[:, idx] ,
+    #                     color=unitTestSupport.getLineColor(idx, 3),
+    #                     label=r'$\Delta r_{BN,' + str(idx) + '}$')
+    #         plt.legend(loc='lower right')
+    #         plt.xlabel('Time [orbits]')
+    #         plt.ylabel('Trajectory Differences [m]')
+    #         pltName = fileName + "3" + orbitCase + str(int(useSphericalHarmonics)) + 'Earth'
+    #         figureList[pltName] = plt.figure(3)
+
+    #         finalDiff = np.linalg.norm(Deltar[-1])
+
+    #     else:
+
+    #         plt.figure(2)
+    #         fig = plt.gcf()
+    #         ax = fig.gca()
+    #         ax.ticklabel_format(useOffset=False, style='plain')
+    #         smaData = []
+    #         for idx in range(0, len(posData)):
+    #             oeData = orbitalMotion.rv2elem(mu, posData[idx], velData[idx])
+    #             smaData.append(oeData.a / 1000.)
+    #         plt.plot(timeAxis * macros.NANO2SEC / P, smaData, color='#aa0000',
+    #                 )
+    #         plt.xlabel('Time [orbits]')
+    #         plt.ylabel('SMA [km]')
+
+    #     pltName = fileName + "2" + orbitCase + str(int(useSphericalHarmonics)) + 'Earth'
+    #     figureList[pltName] = plt.figure(2)
+    #     return figureList, finalDiff

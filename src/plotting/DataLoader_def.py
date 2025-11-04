@@ -43,8 +43,8 @@ class DataLoader:
             time_dataset = self.get_dataset(f, "time")
             time = np.asarray(time_dataset[:], dtype=np.float64)
 
-            logging.debug(f"Data dimensions read from {filename}/time\n"
-                    f"                  time shape: {time.shape}")
+            # logging.debug(f"Data dimensions read from {filename}/time\n"
+            #         f"                  time shape: {time.shape}")
 
             # iterate satellites
             objects_group = f["objects"]
@@ -68,9 +68,9 @@ class DataLoader:
                 pos = np.asarray(pos_dataset[:], dtype=np.float64)
                 vel = np.asarray(vel_dataset[:], dtype=np.float64)
 
-                logging.debug(f"Data dimensions read from from {filename}/objects/{sat_name}\n"
-                    f"                  pos shape:  {pos.shape}\n"
-                    f"                  vel shape:  {vel.shape}")
+                # logging.debug(f"Data dimensions read from from {filename}/objects/{sat_name}\n"
+                #     f"                  pos shape:  {pos.shape}\n"
+                #     f"                  vel shape:  {vel.shape}")
 
                 # Ensure pos and vel are matrices
                 if pos.ndim != 2 or vel.ndim != 2:
@@ -95,10 +95,10 @@ class DataLoader:
                                     f"pos {pos.shape}, vel {vel.shape}")
                 
                 
-                logging.debug(f"Data dimensions loaded into SimData object from {sat_name}\n"
-                    f"                  time shape: {time.shape} \n"
-                    f"                  pos shape:  {pos.shape}\n"
-                    f"                  vel shape:  {vel.shape}")
+                # logging.debug(f"Data dimensions loaded into SimData object from {sat_name}\n"
+                #     f"                  time shape: {time.shape} \n"
+                #     f"                  pos shape:  {pos.shape}\n"
+                #     f"                  vel shape:  {vel.shape}")
                 
 
                 sim_obj = SimObjData(

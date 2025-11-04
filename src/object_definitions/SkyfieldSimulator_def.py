@@ -144,7 +144,7 @@ class SkyfieldSimulator():
 
     def output_data(self) -> None:
         """
-        Write the simulation data to a file stored in data/sim_out/
+        Write the simulation data to a file named '<cfg.timestamp_str>_skf.h5' stored in data/sim_data/
         """
         
         # Check that simulation data has been stored
@@ -153,10 +153,6 @@ class SkyfieldSimulator():
         
         # Log data to file
         self.sim_data.write_data_to_file(self.cfg.timestamp_str, "skf")
-
-
-    def plot(self):
-        pass
 
 
     def extract_initial_states_and_update_satellites(self, cfg: Config) -> None:
