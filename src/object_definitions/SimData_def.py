@@ -7,16 +7,17 @@ from numpy.typing import NDArray
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
-DATA_SAVE_FOLDER_PATH = Path('data/sim_out')
+# Global definition of data save folder path
+DATA_SAVE_FOLDER_PATH = Path('data/sim_data')
 
 
 @dataclass_json
 @dataclass
 class SimObjData:
     satellite_name: str
-    time: NDArray[np.float64]
-    pos: NDArray[np.float64]
-    vel: NDArray[np.float64]
+    time: NDArray[np.float64] # (1,n)
+    pos: NDArray[np.float64] # (3,n)
+    vel: NDArray[np.float64] # (3,n)
 
 
 
@@ -101,10 +102,8 @@ class SimData:
                 g = g_objs.create_group(obj_data.satellite_name)
 
                 # Ensure shape (3,n): transpose the arrays are (n,3)
-                print(obj_data.pos.shape)
                 pos = obj_data.pos.T if obj_data.pos.shape[1] == 3 else obj_data.pos
                 vel = obj_data.vel.T if obj_data.vel.shape[1] == 3 else obj_data.vel
-                print(pos.shape)
 
                 g.create_dataset("pos", data=pos, compression="gzip", compression_opts=4, shuffle=True)
                 g.create_dataset("vel", data=vel, compression="gzip", compression_opts=4, shuffle=True)

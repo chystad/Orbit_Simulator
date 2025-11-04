@@ -375,6 +375,23 @@ class BasiliskSimulator:
         """
         logging.debug("Basilisk simulation complete")
 
+
+    def output_data(self) -> None:
+        """
+        Write the simulation data to a file stored in data/sim_out/
+        """
+        pass
+        
+        #### Uncomment once attribute sim_data has been defined ####
+
+        # # Check that simulation data has been stored
+        # if self.sim_data is None:
+        #     raise ValueError("Simulation data not yet generated. Call skf.run() before skf.output_data().")
+        
+        # # Log data to file
+        # self.sim_data.write_data_to_file(self.cfg.timestamp_str, "bsk")
+    
+
     def plot(self):
         """
         TODO: 

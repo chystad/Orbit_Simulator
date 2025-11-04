@@ -1,6 +1,7 @@
 import logging
 
 from __init__ import initialize
+from plotting.plot import plot
 from object_definitions.BasiliskSimulator_def import BasiliskSimulator
 from object_definitions.SkyfieldSimulator_def import SkyfieldSimulator
 
@@ -24,6 +25,9 @@ def simualte_satellite_orbits():
 
     # Run Basilisk Dynamic Model Propagator
     bsk.run()
+
+    # Plot results
+    plot(cfg)
 
     # Plot 
     # bsk.plot()

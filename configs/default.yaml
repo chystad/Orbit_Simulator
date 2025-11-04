@@ -9,19 +9,21 @@ SIMULATION:
 
 # Plotting options
 PLOTTING:
+  plot_prev_sim: false # TODO: NOT IMPLEMENTED. Also, 'implement func that skips simulations if this is true
   show_plots: true
   save_plots: false
-  save_path: ./plots
+  save_path: ./plots # TODO: Move to plot.py (same as data_save_path is defined in SimData_def.py)
 
 # Global satellites and their TLE data
+# Satellite #1 will be considered as the formation Chef/Leader satellite 
 SATELLITES:
   satellite1:
     name: "TestSat-1"
-    tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0  9000" # Position and velocity @ inital epoch will be calculated from TLE
+    tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0  9000"
     tle_line2: "2 25544  51.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
   satellite2: 
     name: "TestSat-2"
-    tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0    9000" # Position and velocity @ inital epoch will be calculated from TLE
+    tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0    9000"
     tle_line2: "2 25544  60.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
 
 # Skyfield specific settings
