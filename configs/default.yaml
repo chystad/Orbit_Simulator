@@ -4,7 +4,7 @@
 # Global simulation configuration settings
 SIMULATION:
   startTime: "02.04.2025 12:00:00" # UTC time
-  simulationDuration: 24.0          # hours
+  simulationDuration: 48.0          # hours
   tle_export_path: "data/tle_files/"
 
 # Plotting options

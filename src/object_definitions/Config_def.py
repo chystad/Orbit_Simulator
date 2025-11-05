@@ -33,11 +33,9 @@ SkyfiledConfig:
 @dataclass
 class BasiliskSettings:
     useSphericalHarmonics: bool
-    orbitCase: str
-    show_plots: bool
     show_progress_bar: bool
     deltaT: float
-    use_custom_initial_state: bool
+    override_skf_initial_state: bool
 
 @dataclass_json
 @dataclass
@@ -82,11 +80,9 @@ class Config:
 
         # Fetch from basilisk.yaml
         useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
-        orbitCase = b_cfg['BASILISK_SIMULATION']['orbitCase']
-        show_plots = b_cfg['BASILISK_SIMULATION']['show_plots']
         show_progress_bar = b_cfg['BASILISK_SIMULATION']['show_progress_bar']
         bsk_deltaT = b_cfg['BASILISK_SIMULATION']['deltaT']
-        use_custom_initial_state = b_cfg['BASILISK_SIMULATION']['use_custom_initial_state']
+        override_skf_initial_state = b_cfg['BASILISK_SIMULATION']['override_skf_initial_state']
 
         # Fetch from skyfield.yaml
         skf_deltaT = s_cfg['SKYFIELD_SIMULATION']['deltaT']
@@ -106,11 +102,9 @@ class Config:
         # Assign BasiliskSettings instance to b_set attribute
         self.b_set = BasiliskSettings(
             useSphericalHarmonics,
-            orbitCase,
-            show_plots,
             show_progress_bar,
             bsk_deltaT,
-            use_custom_initial_state
+            override_skf_initial_state
         )
 
         # Assign SkyfieldSettings instance to s_set attribute

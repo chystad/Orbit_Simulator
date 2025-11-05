@@ -212,7 +212,7 @@ class SkyfieldSimulator():
         Creates/overwrites a .txt file containing all satellite TLEs from the default config.
         Skyfield requries such a file for satellite object generation. 
 
-        RETURNS:
+        Returns:
             output_tle_path (str): The path to the generated tle file
         """
 

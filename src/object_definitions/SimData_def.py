@@ -49,7 +49,7 @@ class SimData:
         """
         
         self.sim_data: list[SimObjData] = all_sim_obj_data
-        self.rel_data: Optional = None
+        self.rel_data: Optional[list[RelObjData]] = None
         return
 
 
