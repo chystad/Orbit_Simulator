@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 from numpy.typing import NDArray
 from dataclasses import dataclass
@@ -67,6 +68,7 @@ class DataProcessor:
         Returns:
             None
         """
+        logging.debug("Calculating the relative position between chief and follower and transforming into RTN frame...")   
         
         if sim_data.rel_data is not None:
             raise ValueError(f"sim_data.rel_data has already been initialized. Type: {type(sim_data.rel_data)}")
@@ -134,3 +136,20 @@ class DataProcessor:
                 
         # Set input SimData attribute 'rel_data'
         sim_data.rel_data = rel_data
+
+    @staticmethod
+    def ensure_increasing(t, arr3xn):
+        """If time is not strictly increasing, sort time and associated (3, n) array accordingly."""
+        idx = np.argsort(t)
+        if not np.all(idx == np.arange(t.size)):
+            t = t[idx]
+            arr3xn = arr3xn[:, idx]
+        return t, arr3xn
+
+    @staticmethod
+    def interp_3xn(src_t, src_3xn, dst_t):
+        """Interpolate a (3, n) array defined on src_t onto dst_t (per row)."""
+        out = np.empty((3, dst_t.size), dtype=src_3xn.dtype)
+        for c in range(3):
+            out[c] = np.interp(dst_t, src_t, src_3xn[c])
+        return out

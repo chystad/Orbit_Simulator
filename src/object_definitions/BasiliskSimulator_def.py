@@ -2,6 +2,7 @@ import os
 import logging
 import numpy as np
 from numpy.typing import NDArray
+from datetime import datetime, timezone
 
 # from object_definitions.BaseSimulator_def import BaseSimulator
 from object_definitions.Config_def import Config
@@ -9,7 +10,7 @@ from object_definitions.Satellite_def import Satellite
 from object_definitions.SimData_def import SimData, SimObjData
 
 from Basilisk import __path__
-from Basilisk.simulation import spacecraft, radiationPressure
+from Basilisk.simulation import spacecraft, radiationPressure, spiceInterface, eclipse
 from Basilisk.utilities import (SimulationBaseClass, macros, orbitalMotion,
                                 simIncludeGravBody, unitTestSupport, vizSupport)
 
@@ -29,8 +30,9 @@ class BasiliskSimulator:
         simTaskName     Simulation task name (str)
         scSim           Simulation module container
         scObjects       List containing all simulation objects (satellites)
-        dataRecorders   List containing all simulation recorders (one for each scObject)
+        scRecorders   List containing all simulation recorders (one for each scObject)
         sim_data        Object containing the simulaton output data (Optional[SimData])
+        sunRec          Sun state recorder
     =========================================================================================================
     """
     def __init__(self, cfg: Config) -> None:
@@ -93,6 +95,7 @@ class BasiliskSimulator:
 
         # setup Gravity Body and initialize Earth as the central celestial body
         gravFactory = simIncludeGravBody.gravBodyFactory()
+        sun = gravFactory.createSun()
         planet = gravFactory.createEarth()
         planet.isCentralBody = True          # ensure this is the central gravitational body
         if b_set.useSphericalHarmonics:
@@ -103,15 +106,54 @@ class BasiliskSimulator:
             # are included.  This harmonics data file only includes a zeroth order and J2 term.
         mu = planet.mu
 
+        # Add SPICE publisher (Sun + Earth)
+        spicePath = os.path.join(bskPath, "supportData", "EphemerisData") + os.sep
+        spiceKernels = ["de430.bsp", "naif0012.tls", "de-403-masses.tpc", "pck00010.tpc"]
+        spiceTime = self.to_spice_utc(cfg.startTime)
+        
+        spiceObj = gravFactory.createSpiceInterface(
+            path=spicePath,
+            time=spiceTime,
+            spiceKernelFileNames=spiceKernels,
+            spicePlanetNames=["sun", "earth"],
+            epochInMsg=False
+        )
+
+        spiceObj.zeroBase = "earth"
+        self.scSim.AddModelToTask(self.simTaskName, spiceObj)
+
+        # Define 
+        sunMsg   = spiceObj.planetStateOutMsgs[0]
+        earthMsg = spiceObj.planetStateOutMsgs[1]
+
+        ####### FOR DEBUG ###############################
+        self.sunRec = sunMsg.recorder(samplingTime)
+        self.earthRec = earthMsg.recorder(samplingTime)
+        self.scSim.AddModelToTask(self.simTaskName, self.sunRec)
+        self.scSim.AddModelToTask(self.simTaskName, self.earthRec)
+        #################################################
+        
+        
+        # ---- Eclipse model (Earth eclipsing the Sun) ----
+        eclipseObj = eclipse.Eclipse()
+        eclipseObj.sunInMsg.subscribeTo(sunMsg)   # Sun
+        eclipseObj.addPlanetToModel(earthMsg)        # Earth occluder
+        self.scSim.AddModelToTask(self.simTaskName, eclipseObj)
+
         
 
         ##########################################
-        # Initialize scObjects and dataRecorders #
+        # Initialize scObjects and scRecorders #
         ##########################################
 
-        # Initialize empty containers for to-be-defined Spacecraft/Recorder objects
+        # Recorder for the sun state
+        # sunRec = spiceObj.planetStateOutMsgs[0].recorder(samplingTime)
+        # self.scSim.AddModelToTask(self.simTaskName, sunRec)
+        # self.sunRec = sunRec
+        
+        # Initialize empty containers for to-be-defined Spacecraft objects and its recorders
         self.scObjects: list[spacecraft.Spacecraft] = []
-        self.dataRecorders: list = [] # list of what?
+        self.scRecorders: list = [] # list of what?
 
         # get satellites from config
         satellites = self.cfg.satellites
@@ -121,11 +163,12 @@ class BasiliskSimulator:
             # Initialize spacecraft object
             scObj = spacecraft.Spacecraft()
             scObj.ModelTag = sat.name
+            scObj.hub.mHub = getattr(sat, "mass", 50.0)  # kg # TODO: Config param
 
             # Add spacecraft object to the simulation process
             self.scSim.AddModelToTask(self.simTaskName, scObj)
 
-            # The gravitational body must be added to the spacecraft object
+            # Add all gravity bodies to this spacecraft
             gravFactory.addBodiesTo(scObj)
 
             if b_set.override_skf_initial_state:
@@ -146,17 +189,37 @@ class BasiliskSimulator:
             scObj.hub.r_CN_NInit = rN  # m   - r_BN_N
             scObj.hub.v_CN_NInit = vN  # m/s - v_BN_N
             
-            # Create object state recorders
-            dataRec = scObj.scStateOutMsg.recorder(samplingTime)
+            
+            # Register this spacecraft with the eclipse model to get its own eclipse msg
+            eclipseObj.addSpacecraftToModel(scObj.scStateOutMsg)
+
+            # ---- SRP effector (cannonball) ----
+            srp = radiationPressure.RadiationPressure()
+            srp.setUseCannonballModel()
+            srp.area = getattr(sat, "A_srp", 0.5)          # m^2 TODO: (configure per sat)
+            srp.coefficientReflection = getattr(sat, "Cr", 1.35)
+
+            # Inputs: Sun ephemeris + this spacecraft’s eclipse factor
+            srp.sunEphmInMsg.subscribeTo(sunMsg)
+            srp.sunEclipseInMsg.subscribeTo(eclipseObj.eclipseOutMsgs[-1])  # last added = this SC
+
+            # Mount SRP onto the spacecraft and schedule it
+            scObj.addDynamicEffector(srp)
+            self.scSim.AddModelToTask(self.simTaskName, srp)
+            
+            # Create object state and force recorders
+            scRec = scObj.scStateOutMsg.recorder(samplingTime)
+            # srpRec = self.make_srp_recorder(srp, samplingTime)  
 
             # Add recorder to the simulation process
-            self.scSim.AddModelToTask(self.simTaskName, dataRec)
+            self.scSim.AddModelToTask(self.simTaskName, scRec)
+            # self.scSim.AddModelToTask(self.simTaskName, srpRec)
                         
-            # Append defined spacecraft object and dataRec to scObjects and dataRecorders, respectively
+            # Append defined spacecraft object and scRec to scObjects and scRecorders, respectively
             self.scObjects.append(scObj)
-            self.dataRecorders.append(dataRec)
+            self.scRecorders.append(scRec)
+            # self.srpRecorders.append(srpRec)
 
-    
 
 
         # initialize Simulation:  This function runs the self_init()
@@ -200,12 +263,12 @@ class BasiliskSimulator:
         t = t.reshape(1, -1) # is now shape: (1,n)
 
         # Get simulation data
-        if len(satellites) != len(self.dataRecorders):
+        if len(satellites) != len(self.scRecorders):
             raise ValueError(f"Mismatch between the number of satellites in cfg.satellites({len(satellites)})"
-                             f"and the number of trajectories in self.dataRecorders ({len(self.dataRecorders)})")
+                             f"and the number of trajectories in self.scRecorders ({len(self.scRecorders)})")
 
         sim_data: list[SimObjData] = []
-        for i, recorder in enumerate(self.dataRecorders):
+        for i, recorder in enumerate(self.scRecorders):
             sat_name = satellites[i].name
             pos = np.asarray(recorder.r_BN_N)
             vel = np.asarray(recorder.v_BN_N)
@@ -230,6 +293,15 @@ class BasiliskSimulator:
         self.output_data()
 
         logging.debug("Basilisk simulation complete")
+
+        ############### DEBUG ###############
+        # print("||sat1 position|| @0 [m]   =", np.linalg.norm(self.sim_data.sim_data[0].pos))
+        # print(self.sunRec)
+        # sun_pos = np.asarray(self.sunRec.PositionVector)[0]
+        # earth_pos = np.asarray(self.earthRec.PositionVector)[0]
+        # print("||Sun position|| @0 [m]   =", np.linalg.norm(sun_pos))
+        # print("||Earth position|| @0 [m] =", np.linalg.norm(earth_pos))
+        #############################################
 
 
     def output_data(self) -> None:
@@ -322,3 +394,12 @@ class BasiliskSimulator:
         rN = rN_list[satellite_idx]
         vN = vN_list[satellite_idx]
         return rN, vN
+    
+
+    @staticmethod
+    def to_spice_utc(s: str) -> str:
+        # s like "02.04.2025 12:00:00" (DD.MM.YYYY HH:MM:SS) in local time (Europe/Oslo)?
+        dt_local = datetime.strptime(s, "%d.%m.%Y %H:%M:%S")
+        # If the string is *already* UTC, replace with timezone.utc directly.
+        dt_utc = dt_local.replace(tzinfo=timezone.utc)
+        return dt_utc.strftime("%Y %b %d %H:%M:%S UTC")

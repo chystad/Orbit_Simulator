@@ -4,7 +4,7 @@
 # Global simulation configuration settings
 SIMULATION:
   startTime: "02.04.2025 12:00:00" # UTC time
-  simulationDuration: 48.0          # hours
+  simulationDuration: 96.0          # hours
   tle_export_path: "data/tle_files/"
 
 # Plotting options
@@ -43,3 +43,11 @@ BASILISK:
   #   name: "TestSat-2"
   #   tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0    9000"
   #   tle_line2: "2 25544  60.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
+
+
+# GSAT0201 (GALILEO 5)    
+# 1 40128U 14050A   25293.02891527 -.00000069  00000+0  00000+0 0  9994
+# 2 40128  49.1381 283.2505 1642820 170.2404 193.3914  1.85519627 73867
+# GSAT0202 (GALILEO 6)    
+# 1 40129U 14050B   25292.20739736 -.00000067  00000+0  00000+0 0  9995
+# 2 40129  49.1552 282.3666 1643429 170.9672 192.3990  1.85520331 76013

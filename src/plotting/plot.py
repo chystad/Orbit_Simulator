@@ -1,7 +1,10 @@
+import logging
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from typing import Optional
+from PIL import PngImagePlugin
 from pathlib import Path
+from typing import Optional
 
 from object_definitions.Config_def import Config
 from object_definitions.SimData_def import SimData
@@ -23,9 +26,11 @@ def plot(cfg: Config, alt_datafilename_to_plot: Optional[str] = None) -> None:
             of the datafiles 
     """
 
+    # Stop plots to clutter the terminal with debug info
+    quiet_plots()
+    
     # Initialize data loader and processor objects
     data_loader = DataLoader()
-    data_processor = DataProcessor()
 
     if alt_datafilename_to_plot is None:
         # plot results from this simulation 
@@ -37,14 +42,12 @@ def plot(cfg: Config, alt_datafilename_to_plot: Optional[str] = None) -> None:
 
     skf_sim_data, bsk_sim_data = data_loader.load_and_separate_data(datafiles_to_plot)
     
-    # TODO: insert check of config parameter to actually run this command.
-    # plot_pos_comparison(skf_sim_data, bsk_sim_data)
 
-    # Test
-    data_processor.calculate_relative_formation_movement_rtc(skf_sim_data)
-    data_processor.calculate_relative_formation_movement_rtc(bsk_sim_data)
-
+    plot_pos_comparison(skf_sim_data, bsk_sim_data)
+    
     plot_rel_pos_comparison(skf_sim_data, bsk_sim_data)
+
+    plot_simulator_diff(skf_sim_data, bsk_sim_data)
     
 
 
@@ -91,8 +94,8 @@ def plot_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
             raise ValueError(f"time must be 1D or (1, n) for satellite index {i}.")
 
         # Flatten times to 1D
-        t_skf = np.ravel(skf.time)
-        t_bsk = np.ravel(bsk.time)
+        t_skf = np.ravel(skf.time) / (60*60) # Time [hours]
+        t_bsk = np.ravel(bsk.time) / (60*60) # Time [hours]
 
         # Create a new figure for this satellite; no explicit numbering to avoid conflicts
         plt.figure()
@@ -121,8 +124,8 @@ def plot_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
 
         sat_name = skf.satellite_name if getattr(skf, "satellite_name", None) else f"Satellite {i+1}"
         ax.set_title(f"Position comparison — {sat_name}")
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Position component")
+        ax.set_xlabel("Time (hours)")
+        ax.set_ylabel("ECI Position (m)")
         ax.grid(True, alpha=0.3)
         ax.legend(ncol=2)
         plt.show()
@@ -143,6 +146,14 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
     Returns:
         None
     """
+    # Initialize data processor
+    data_processor = DataProcessor()
+
+    # Calculate the relative position vectors from every follower satellites 
+    # to the chief satellite expressed in RTN frame, and set results in rel_data attribute
+    data_processor.calculate_relative_formation_movement_rtc(skf_sim_data)
+    data_processor.calculate_relative_formation_movement_rtc(bsk_sim_data)
+
     skf_list = skf_sim_data.rel_data
     bsk_list = bsk_sim_data.rel_data
 
@@ -162,7 +173,15 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
     bsk_colors = ["#a1d99b", "#31a354", "#006d2c"]  # greens
     comp_labels = ["x", "y", "z"]
 
-    for i in range(n_sats):
+    # Get the chief satellite name
+    skf_chief_sat_name = skf_list[0].satellite_name
+    bsk_chief_sat_name = bsk_list[0].satellite_name
+    if skf_chief_sat_name != bsk_chief_sat_name:
+        raise ValueError(f"Mismatch between the first satellite (chief) name in skf_list ({skf_chief_sat_name} "
+                         f"and bsk_list ({bsk_chief_sat_name})")
+    chief_sat_name = skf_chief_sat_name
+
+    for i in range(1, n_sats):
         skf = skf_list[i]
         bsk = bsk_list[i]
 
@@ -173,8 +192,8 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
             raise ValueError(f"time must be 1D or (1, n) for satellite index {i}.")
 
         # Flatten times to 1D
-        t_skf = np.ravel(skf.time)
-        t_bsk = np.ravel(bsk.time)
+        t_skf = np.ravel(skf.time) / (60*60) # Time [hours]
+        t_bsk = np.ravel(bsk.time) / (60*60) # Time [hours]
 
         # Create a new figure for this satellite; no explicit numbering to avoid conflicts
         plt.figure()
@@ -202,14 +221,122 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
             )
 
         sat_name = skf.satellite_name if getattr(skf, "satellite_name", None) else f"Satellite {i+1}"
-        ax.set_title(f"Position comparison — {sat_name}")
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Position component")
+        ax.set_title(f"Relative position between {sat_name} (follower) and {chief_sat_name} (chief)")
+        ax.set_xlabel("Time (hours)")
+        ax.set_ylabel("RTN Δposition (m)")
         ax.grid(True, alpha=0.3)
         ax.legend(ncol=2)
         plt.show()
     
+
+def plot_simulator_diff(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+    """
+    For each satellite i, create a figure with two stacked subplots:
+      Top:  (bsk.pos - skf.pos) components over time
+      Bottom: (bsk.vel - skf.vel) components over time
+    BSK data are interpolated onto the SKF time grid if their time vectors differ.
+    Uses colors: x=red, y=green, z=blue. Does not call plt.show().
+    """
+    # Colors for components: x (red), y (green), z (blue)
+    COMP_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]  # r, g, b
+    COMP_LABELS = ["x", "y", "z"]
+
+    skf_list = skf_sim_data.sim_data
+    bsk_list = bsk_sim_data.sim_data
+    data_processor = DataProcessor()
+
+    if len(skf_list) != len(bsk_list):
+        raise ValueError(f"Satellite count mismatch: SKF={len(skf_list)}, BSK={len(bsk_list)}")
+
+    n_sats = len(skf_list)
+    if n_sats == 0:
+        return
+
+    for i in range(n_sats):
+        skf = skf_list[i]
+        bsk = bsk_list[i]
+
+        # Basic shape checks
+        if skf.pos.shape[0] != 3 or bsk.pos.shape[0] != 3:
+            raise ValueError(f"[sat {i}] pos must be shape (3, n)")
+        if skf.vel.shape[0] != 3 or bsk.vel.shape[0] != 3:
+            raise ValueError(f"[sat {i}] vel must be shape (3, n)")
+
+        # Flatten/validate times and ensure increasing for interpolation
+        t_skf = np.ravel(skf.time) / (60*60) # Time [hours]
+        t_bsk = np.ravel(bsk.time) / (60*60) # Time [hours]
+        if t_skf.size != skf.pos.shape[1] or t_skf.size != skf.vel.shape[1]:
+            raise ValueError(f"[sat {i}] SKF time length must match pos/vel columns")
+        if t_bsk.size != bsk.pos.shape[1] or t_bsk.size != bsk.vel.shape[1]:
+            raise ValueError(f"[sat {i}] BSK time length must match pos/vel columns")
+
+        t_skf, skf_pos = data_processor.ensure_increasing(t_skf, skf.pos)
+        _,     skf_vel = data_processor.ensure_increasing(t_skf, skf.vel)  # skf_pos/vel share t_skf order
+
+        t_bsk, bsk_pos = data_processor.ensure_increasing(t_bsk, bsk.pos)
+        _,     bsk_vel = data_processor.ensure_increasing(t_bsk, bsk.vel)
+
+        # Interpolate BSK onto SKF time grid if needed
+        if t_bsk.size != t_skf.size or not np.allclose(t_bsk, t_skf):
+            bsk_pos_on_skf = data_processor.interp_3xn(t_bsk, bsk_pos, t_skf)
+            bsk_vel_on_skf = data_processor.interp_3xn(t_bsk, bsk_vel, t_skf)
+        else:
+            bsk_pos_on_skf = bsk_pos
+            bsk_vel_on_skf = bsk_vel
+
+        # Differences
+        dpos = bsk_pos_on_skf - skf_pos
+        dvel = bsk_vel_on_skf - skf_vel
+
+        # Create figure with two stacked subplots; no explicit numbering to avoid conflicts
+        fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True)
+        ax_pos, ax_vel = axes
+
+        # Top: position diffs
+        for comp in range(3):
+            ax_pos.plot(
+                t_skf, dpos[comp],
+                label=f"Δpos {COMP_LABELS[comp]}",
+                linewidth=1.8,
+                color=COMP_COLORS[comp],
+            )
+        ax_pos.set_ylabel("ECI Δposition (m)")
+        ax_pos.grid(True, alpha=0.3)
+        ax_pos.legend(ncol=3)
+
+        # Bottom: velocity diffs
+        for comp in range(3):
+            ax_vel.plot(
+                t_skf, dvel[comp],
+                label=f"Δvel {COMP_LABELS[comp]}",
+                linewidth=1.8,
+                color=COMP_COLORS[comp],
+            )
+        ax_vel.set_xlabel("Time (hours)")
+        ax_vel.set_ylabel("ECI Δvelocity (m/s)")
+        ax_vel.grid(True, alpha=0.3)
+        ax_vel.legend(ncol=3)
+
+        sat_name = getattr(skf, "satellite_name", None) or f"Satellite {i+1}"
+        fig.suptitle(f"Simulator difference — {sat_name}")
+        # fig.tight_layout(rect=[0., 0., 1., 0.96])
+        plt.show()
+
 def save_plot():
+    # TODO
     pass
 
+def quiet_plots() -> None:
+    # Only show warnings and errors globally
+    logging.basicConfig(level=logging.WARNING)
+
+    # Matplotlib: silence backend + font-manager chatter
+    mpl.set_loglevel("warning")
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
+
+    # Pillow (PIL): silence PNG chunk debug like "STREAM b'IHDR'"
+    #PngImagePlugin.debug = False
+    logging.getLogger("PIL").setLevel(logging.WARNING)
+    logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 
