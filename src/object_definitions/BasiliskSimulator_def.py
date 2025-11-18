@@ -95,6 +95,7 @@ class BasiliskSimulator:
 
         # setup Gravity Body and initialize Earth as the central celestial body
         gravFactory = simIncludeGravBody.gravBodyFactory()
+        # moon = gravFactory.createMoon()
         sun = gravFactory.createSun()
         planet = gravFactory.createEarth()
         planet.isCentralBody = True          # ensure this is the central gravitational body

@@ -1,6 +1,7 @@
 import yaml
 import logging
 import numpy as np
+from pathlib import Path
 from numpy.typing import NDArray
 from pathlib import Path
 from datetime import datetime
@@ -9,6 +10,8 @@ from dataclasses_json import dataclass_json
 
 from object_definitions.Satellite_def import Satellite
 from object_definitions.TwoLineElement_def import TLE
+
+COMBINED_CFG_SAVE_FOLDER = Path('data/sim_data')
 
 """
 =========================================================================================================
@@ -112,6 +115,9 @@ class Config:
             skf_deltaT
         )
 
+        # Save a combined config under COMBINED_CFG_SAVE_FOLDER
+        self.save_combined_config(config_file_path, d_cfg)
+
 
     def read(self, config_file_path: str):
         # Get full path to the target config file
@@ -122,6 +128,50 @@ class Config:
             config = yaml.full_load(f)
 
         return config
+
+
+
+    def save_combined_config(self, config_file_path: str, loaded_default_cfg) -> None:
+        """
+        Combine default.yaml, skyfield.yaml, and basilisk.yaml into one file and save as:
+            <repo_root>/data/sim_data/<timestamp_str>_cfg.yaml
+
+        Order: default, then skyfield, then basilisk.
+        """
+        # Ensure output directory exists
+        COMBINED_CFG_SAVE_FOLDER.mkdir(parents=True, exist_ok=True)
+
+        # Build output path using timestamp_str from this Config instance
+        out_path = COMBINED_CFG_SAVE_FOLDER / f"{self.timestamp_str}_cfg.yaml"
+
+        # Config paths
+        default_cfg_path = Path(config_file_path)
+        skyfield_cfg_path = Path(loaded_default_cfg['SKYFIELD']['config_path'])
+        basilisk_cfg_path = Path(loaded_default_cfg['BASILISK']['config_path'])
+        
+        # Read raw text from each config file in the specified order
+        with open(default_cfg_path, "r") as f_default:
+            default_text = f_default.read()
+
+        with open(skyfield_cfg_path, "r") as f_skf:
+            skyfield_text = f_skf.read()
+
+        with open(basilisk_cfg_path, "r") as f_bsk:
+            basilisk_text = f_bsk.read()
+
+        # Combine texts: default, then skyfield, then basilisk
+        # Add blank lines between sections for readability
+        combined_text = (
+            default_text.rstrip() + "\n\n"
+            + skyfield_text.rstrip() + "\n\n"
+            + basilisk_text.rstrip() + "\n"
+        )
+
+        # Write combined config snapshot
+        with open(out_path, "w") as f_out:
+            f_out.write(combined_text)
+
+        logging.info(f"Combined config written to: {out_path}")
     
         
     

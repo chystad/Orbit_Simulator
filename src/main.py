@@ -32,3 +32,25 @@ def simualte_satellite_orbits():
 
 if __name__ == "__main__":
     simualte_satellite_orbits()
+
+
+# TODO
+"""
+* Generate timestamped .bin files for Vizard without overwriting old data (like it is already implemented in sim_data)
+
+* Implement drag with exponentially decaying atmosphere
+
+* Implement 3rd body pull from the moon (and check sun)
+
+* Implement option to toggle disturbance effect from solar radiation pressure
+
+* Implement functionality to log force from SRP
+
+* Make option available to save generated plots
+
+* Make option available to toggle displaying plots
+
+* Change plot colors where the two simulation outputs are shown in the same plot
+
+* Create plot to show altitude
+"""
