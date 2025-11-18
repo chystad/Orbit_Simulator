@@ -6,8 +6,10 @@ SIMULATION:
 
 # Plotting options
 PLOTTING:
+  bypass_sim_to_plot: false
+  data_timestamp_to_plot: "20251118_231522" # Only plots this data if bypass_sim_to_plot == true
   plot_prev_sim: false # TODO: NOT IMPLEMENTED. Also, 'implement func that skips simulations if this is true
-  show_plots: true
+  show_plots: true 
   save_plots: false
 
 # Global satellites and their TLE data

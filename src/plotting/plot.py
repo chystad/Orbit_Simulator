@@ -15,7 +15,7 @@ from plotting.DataProcessor_def import DataProcessor
 PLT_SAVE_FOLDER_PATH = Path('data/sim_plt')
 
 
-def plot(cfg: Config, alt_datafilename_to_plot: Optional[str] = None) -> None:
+def plot(cfg: Config) -> None:
     """
     Description coming here...
     
@@ -32,14 +32,15 @@ def plot(cfg: Config, alt_datafilename_to_plot: Optional[str] = None) -> None:
     # Initialize data loader and processor objects
     data_loader = DataLoader()
 
-    if alt_datafilename_to_plot is None:
+    if not cfg.bypass_sim_to_plot:
         # plot results from this simulation 
         datafiles_to_plot = data_loader.get_datafiles_by_timestamp(cfg.timestamp_str)
         
     else:
         # plot results from a previous simulation
-        datafiles_to_plot = data_loader.get_datafiles_by_timestamp(alt_datafilename_to_plot)
+        datafiles_to_plot = data_loader.get_datafiles_by_timestamp(cfg.data_timestamp_to_plot)
 
+    # Load simulation data
     skf_sim_data, bsk_sim_data = data_loader.load_and_separate_data(datafiles_to_plot)
     
 

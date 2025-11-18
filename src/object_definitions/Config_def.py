@@ -10,6 +10,7 @@ from dataclasses_json import dataclass_json
 
 from object_definitions.Satellite_def import Satellite
 from object_definitions.TwoLineElement_def import TLE
+from object_definitions.SimData_def import DATA_SAVE_FOLDER_PATH
 
 COMBINED_CFG_SAVE_FOLDER = Path('data/sim_data')
 
@@ -57,13 +58,15 @@ class Config:
            config_file_path                    
         
         ATTRIBUTES:
-            startTime
-            simulationDuration
-            tle_export_path
-            timestamp_str       Used in the naming of data files. str holding the real-world simulation start time.
-            satellites          One Satellite instance for each satellite described in the default config.
-            b_set               BasiliskSettings instance describing the Basilisk simulation settings
-            s_set               SkyfieldSettings instance describing the Skyfield simulation settings     
+            startTime (str):
+            simulationDuration (float):
+            tle_export_path (str):
+            bypass_sim_to_plot (bool):      If true: Skip the simulation to plot old data
+            data_timestamp_to_plot (str):   Timestamp str for the data to plot. Only plot this if 'bypass_sim_to_plot' == true
+            timestamp_str (str):            Used in the naming of data files. str holding the real-world simulation start time.
+            satellites (list[Satellite]):   One Satellite instance for each satellite described in the default config.
+            b_set (BasiliskSettings):       BasiliskSettings instance describing the Basilisk simulation settings
+            s_set (SkyfieldSettings):       SkyfieldSettings instance describing the Skyfield simulation settings     
         =========================================================================================================
         """
         ####################
@@ -79,7 +82,9 @@ class Config:
         # Fetch from default.yaml
         startTime_str = d_cfg['SIMULATION']['startTime'] # str
         simulationDuration = d_cfg['SIMULATION']['simulationDuration'] # float  
-        tle_export_path = d_cfg['SIMULATION']['tle_export_path']  
+        tle_export_path = d_cfg['SIMULATION']['tle_export_path'] # str
+        bypass_sim_to_plot =  d_cfg['PLOTTING']['bypass_sim_to_plot'] # str
+        data_timestamp_to_plot = d_cfg['PLOTTING']['data_timestamp_to_plot'] # str
 
         # Fetch from basilisk.yaml
         useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
@@ -99,6 +104,8 @@ class Config:
         self.startTime = startTime_str
         self.simulationDuration = simulationDuration
         self.tle_export_path = tle_export_path
+        self.bypass_sim_to_plot = bypass_sim_to_plot
+        self.data_timestamp_to_plot = data_timestamp_to_plot
         self.timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.satellites = satellites
 
@@ -115,8 +122,20 @@ class Config:
             skf_deltaT
         )
 
-        # Save a combined config under COMBINED_CFG_SAVE_FOLDER
-        self.save_combined_config(config_file_path, d_cfg)
+        # Save a combined config under COMBINED_CFG_SAVE_FOLDER if the simulation is not bypassed
+        if not bypass_sim_to_plot:
+            self.save_combined_config(config_file_path, d_cfg)
+        
+        else:
+            logging.debug(f"Bypassing simulation to plot data with the timestamp: {data_timestamp_to_plot}")
+
+            # Check if there are any datafiles with the timestamp 'data_timestamp_to_plot'
+            # Collect all matching .h5 files and return their names as strings
+            matching_files = [
+                file.name for file in DATA_SAVE_FOLDER_PATH.glob(f"{data_timestamp_to_plot}*.h5")
+            ]
+            if matching_files == []:
+                raise FileNotFoundError(f"Datafile with timestamp: '{data_timestamp_to_plot}' was not found.")
 
 
     def read(self, config_file_path: str):

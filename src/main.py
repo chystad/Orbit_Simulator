@@ -10,21 +10,24 @@ def simualte_satellite_orbits():
 
     # Load config and define all neccessary objects
     cfg = initialize('configs/default.yaml')
+
+    # Bypass the simulation if we instead want to plot old datafiles
+    if not cfg.bypass_sim_to_plot:
     
-    # Initialize Skyfield SGP4 Propagator
-    skf = SkyfieldSimulator(cfg)
+        # Initialize Skyfield SGP4 Propagator
+        skf = SkyfieldSimulator(cfg)
 
-    # Run Skyfield SGP4 propagator
-    skf.run()
+        # Run Skyfield SGP4 propagator
+        skf.run()
 
-    # Extract initial states @ simulation startTime and update cfg.satellites
-    skf.extract_initial_states_and_update_satellites(cfg)
+        # Extract initial states @ simulation startTime and update cfg.satellites
+        skf.extract_initial_states_and_update_satellites(cfg)
 
-    # Initialize Basilisk Dynamic Model Propagator
-    bsk = BasiliskSimulator(cfg)
+        # Initialize Basilisk Dynamic Model Propagator
+        bsk = BasiliskSimulator(cfg)
 
-    # Run Basilisk Dynamic Model Propagator
-    bsk.run()
+        # Run Basilisk Dynamic Model Propagator
+        bsk.run()
 
     # Plot results
     plot(cfg)
