@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from PIL import PngImagePlugin
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,8 @@ from plotting.DataProcessor_def import DataProcessor
 
 
 PLT_SAVE_FOLDER_PATH = Path('data/sim_plt')
+PLT_HEIGHT = 6.0
+PLT_WIDTH = 16.0
 
 
 def plot(cfg: Config) -> None:
@@ -29,30 +32,39 @@ def plot(cfg: Config) -> None:
     # Stop plots to clutter the terminal with debug info
     quiet_plots()
     
+    ##################################
+    # Fetch and Load simulation data #
+    ##################################
+
     # Initialize data loader and processor objects
     data_loader = DataLoader()
 
     if not cfg.bypass_sim_to_plot:
         # plot results from this simulation 
-        datafiles_to_plot = data_loader.get_datafiles_by_timestamp(cfg.timestamp_str)
-        
+        data_timestamp = cfg.timestamp_str  
     else:
         # plot results from a previous simulation
-        datafiles_to_plot = data_loader.get_datafiles_by_timestamp(cfg.data_timestamp_to_plot)
+        data_timestamp = cfg.data_timestamp_to_plot
 
+    # Get all datafiles with the corresponding timestamp
+    datafiles_to_plot = data_loader.get_datafiles_by_timestamp(data_timestamp)
+    
     # Load simulation data
     skf_sim_data, bsk_sim_data = data_loader.load_and_separate_data(datafiles_to_plot)
     
+    ############
+    # Plotting #
+    ############
 
-    plot_pos_comparison(skf_sim_data, bsk_sim_data)
+    plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
     
-    plot_rel_pos_comparison(skf_sim_data, bsk_sim_data)
+    plot_rel_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    plot_simulator_diff(skf_sim_data, bsk_sim_data)
+    plot_simulator_diff(cfg, skf_sim_data, bsk_sim_data)
     
 
 
-def plot_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+def plot_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
     Plot position vectors for each satellite from two SimData datasets.
 
@@ -67,6 +79,7 @@ def plot_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     Returns:
         None
     """
+    main_plt_identifier = "PosComp" # Used in the saved plot name
     skf_list = skf_sim_data.sim_data
     bsk_list = bsk_sim_data.sim_data
 
@@ -99,7 +112,7 @@ def plot_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
         t_bsk = np.ravel(bsk.time) / (60*60) # Time [hours]
 
         # Create a new figure for this satellite; no explicit numbering to avoid conflicts
-        plt.figure()
+        plt.figure(figsize=(PLT_WIDTH, PLT_HEIGHT))
         ax = plt.gca()
 
         # Plot SKF (blue shades)
@@ -129,10 +142,14 @@ def plot_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
         ax.set_ylabel("ECI Position (m)")
         ax.grid(True, alpha=0.3)
         ax.legend(ncol=2)
-        plt.show()
+
+        fig = plt.gcf()
+        plt_identifier = f"{main_plt_identifier}_{sat_name}"
+        conditional_save_plot(cfg, fig, plt_identifier)
+        # plt.show()
 
 
-def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+def plot_rel_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
     Plot the position vectors relative to the formation chief satellite expressed in the RTN frame.
 
@@ -147,6 +164,8 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
     Returns:
         None
     """
+    main_plt_identifier = "RelPosComp"
+
     # Initialize data processor
     data_processor = DataProcessor()
 
@@ -197,7 +216,7 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
         t_bsk = np.ravel(bsk.time) / (60*60) # Time [hours]
 
         # Create a new figure for this satellite; no explicit numbering to avoid conflicts
-        plt.figure()
+        plt.figure(figsize=(PLT_WIDTH, PLT_HEIGHT))
         ax = plt.gca()
 
         # Plot SKF (blue shades)
@@ -227,10 +246,14 @@ def plot_rel_pos_comparison(skf_sim_data: SimData, bsk_sim_data: SimData) -> Non
         ax.set_ylabel("RTN Δposition (m)")
         ax.grid(True, alpha=0.3)
         ax.legend(ncol=2)
-        plt.show()
+
+        fig = plt.gcf()
+        plt_identifier = f"{main_plt_identifier}_{sat_name}"
+        conditional_save_plot(cfg, fig, plt_identifier)
+        # plt.show()
     
 
-def plot_simulator_diff(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+def plot_simulator_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
     For each satellite i, create a figure with two stacked subplots:
       Top:  (bsk.pos - skf.pos) components over time
@@ -238,6 +261,8 @@ def plot_simulator_diff(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     BSK data are interpolated onto the SKF time grid if their time vectors differ.
     Uses colors: x=red, y=green, z=blue. Does not call plt.show().
     """
+    main_plt_identifier = "SimDiff" # Part of the saved figure's name
+
     # Colors for components: x (red), y (green), z (blue)
     COMP_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]  # r, g, b
     COMP_LABELS = ["x", "y", "z"]
@@ -290,7 +315,7 @@ def plot_simulator_diff(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
         dvel = bsk_vel_on_skf - skf_vel
 
         # Create figure with two stacked subplots; no explicit numbering to avoid conflicts
-        fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True)
+        fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(PLT_WIDTH, PLT_HEIGHT))
         ax_pos, ax_vel = axes
 
         # Top: position diffs
@@ -321,11 +346,47 @@ def plot_simulator_diff(skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
         sat_name = getattr(skf, "satellite_name", None) or f"Satellite {i+1}"
         fig.suptitle(f"Simulator difference — {sat_name}")
         # fig.tight_layout(rect=[0., 0., 1., 0.96])
-        plt.show()
+        
+        fig = plt.gcf()
+        plt_identifier = f"{main_plt_identifier}_{sat_name}"
+        conditional_save_plot(cfg, fig, plt_identifier)
+        # plt.show()
 
-def save_plot():
-    # TODO
-    pass
+
+def conditional_save_plot(cfg: Config, fig: Figure, plt_identifier: str) -> None:
+    """
+    Save a matplotlib Figure to PLT_SAVE_FOLDER_PATH with a standardized filename iff cfg.save_plots == true.
+
+    Filename: f"{data_timestamp}_{plt_identifier}.png"
+
+    Args:
+        fig: Matplotlib Figure object to save.
+        data_timestamp: Timestamp string associated with the data (e.g. "20251106_003128").
+        plt_identifier: Short identifier for the plot type/content (e.g. "pos_comp_sat1").
+    """
+    # Only save plots if cfg.save_plots == true
+    if not cfg.save_plots:
+        return
+    
+    # Get correct timestamp
+    if not cfg.bypass_sim_to_plot:
+        # plot results from this simulation 
+        data_timestamp = cfg.timestamp_str  
+    else:
+        # plot results from a previous simulation
+        data_timestamp = cfg.data_timestamp_to_plot
+
+    # Ensure target directory exists
+    PLT_SAVE_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{data_timestamp}_{plt_identifier}.png"
+    save_path = PLT_SAVE_FOLDER_PATH / filename
+
+    # Save figure
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    logging.debug(f"Saved figure: {filename}")
+
 
 def quiet_plots() -> None:
     # Only show warnings and errors globally
