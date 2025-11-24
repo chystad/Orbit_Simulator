@@ -39,9 +39,10 @@ if __name__ == "__main__":
 
 # TODO
 """
-* Generate timestamped .bin files for Vizard without overwriting old data (like it is already implemented in sim_data)
-
+Disturbance:
 * Implement drag with exponentially decaying atmosphere
+
+* Also include J3 and J4 terms in Basilisk gravitational disturbance
 
 * Implement 3rd body pull from the moon (and check sun)
 
@@ -49,11 +50,19 @@ if __name__ == "__main__":
 
 * Implement functionality to log force from SRP
 
-* Make option available to save generated plots
 
-* Make option available to toggle displaying plots
+Plotting:
+* Generate nadir projection map
+
+* Change y-axis scaling to km or logarithmic
+
+* Create plot to show altitude
 
 * Change plot colors where the two simulation outputs are shown in the same plot
 
-* Create plot to show altitude
+
+Simulator Misk:
+* Generate timestamped .bin files for Vizard without overwriting old data (like it is already implemented in sim_data)
+
+* Make option available to toggle displaying plots
 """
