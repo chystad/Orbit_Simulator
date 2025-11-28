@@ -58,9 +58,9 @@ def plot(cfg: Config) -> None:
     ############
     # Comment/Uncomment the plotting functions manually to plot the the different plots
 
-    # plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
+    plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    plot_simulator_pos_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_simulator_pos_diff(cfg, skf_sim_data, bsk_sim_data)
     
     # plot_rel_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 

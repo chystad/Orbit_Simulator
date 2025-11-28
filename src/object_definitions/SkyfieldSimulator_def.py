@@ -78,7 +78,7 @@ class SkyfieldSimulator():
 
 
 
-    def run(self):
+    def run(self) -> None:
 
         logging.debug("Running the Skyfield simulation...")
         

@@ -39,7 +39,9 @@ class BasiliskSettings:
     deltaT: float
     useSphericalHarmonics: bool
     useExponentialDensityDrag: bool
-    useSRP:bool
+    useSRP: bool
+    useSun3rdBody: bool
+    useMoon3rdBody: bool
     override_skf_initial_state: bool
 
 @dataclass_json
@@ -96,6 +98,8 @@ class Config:
         useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
         useExponentialDensityDrag = b_cfg['BASILISK_SIMULATION']['useExponentialDensityDrag']
         useSRP = b_cfg['BASILISK_SIMULATION']['useSRP']
+        useSun3rdBody = b_cfg['BASILISK_SIMULATION']['useSun3rdBody']
+        useMoon3rdBody = b_cfg['BASILISK_SIMULATION']['useMoon3rdBody']
         override_skf_initial_state = b_cfg['BASILISK_SIMULATION']['override_skf_initial_state']
 
         # Fetch from skyfield.yaml
@@ -123,6 +127,8 @@ class Config:
             useSphericalHarmonics,
             useExponentialDensityDrag,
             useSRP,
+            useSun3rdBody,
+            useMoon3rdBody,
             override_skf_initial_state
         )
 

@@ -1,13 +1,13 @@
 # Global simulation configuration settings
 SIMULATION:
   startTime: "02.04.2025 12:00:00" # UTC time
-  simulationDuration: 6.0          # hours
+  simulationDuration: 48          # hours
   tle_export_path: "data/tle_files/"
 
 # Plotting options
 PLOTTING:
   show_plots: true
-  save_plots: false
+  save_plots: true
   bypass_sim_to_plot: false
   data_timestamp_to_plot: "20251128_143913" # Only plots this data if bypass_sim_to_plot == true
   plot_prev_sim: false # TODO: NOT IMPLEMENTED. Also, 'implement func that skips simulations if this is true
@@ -18,7 +18,7 @@ SATELLITES:
   satellite1:
     name: "Chief"
     tle_line1: "1 51053U 22002BX  25308.62091721  .00030597  00000+0  55283-3 0  9995"    
-    tle_line2: "2 51053  97.3162  18.5553 0003625  48.0410 312.1150 15.49656913211910"    
+    tle_line2: "2 51053  97.3162  18.5553 0003625  48.0410 312.1150 15.49656913211910"   
   satellite2:
     name: "Follower"
     tle_line1: "1 60531U 24149BR  25308.17016602  .00005181  00000+0  45510-3 0  9998"    
@@ -37,6 +37,12 @@ BASILISK:
 # m_s: 6.0  # [kg] Satellite mass
 # C_R: 1    # Radiation pressure coefficient (0 reflecting, 1 absorbing)
 # A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector
+
+# m_s: 6.0  # [kg] Satellite mass
+# C_srp: 1    # Radiation pressure coefficient (0 reflecting, 1 absorbing)
+# C_D: 2.2  # Drag coefficient
+# A_D: 0.06 # [m^2] Cross-section area perpendicular to the velocity
+# A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector 
 
    
 

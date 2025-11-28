@@ -1,7 +1,7 @@
 import os
 import logging
 import numpy as np
-from typing import Optional
+from typing import Optional, Any
 from numpy.typing import NDArray
 from datetime import datetime, timezone
 
@@ -72,9 +72,9 @@ class BasiliskSimulator:
         fileName = os.path.basename(os.path.splitext(__file__)[0])
 
         
-        #############################
-        # Set up simulation objects #
-        #############################
+        ######################################
+        # Set up simulation task and process #
+        ######################################
 
         # Initialize sim_data attribute
         self.sim_data = None
@@ -94,47 +94,18 @@ class BasiliskSimulator:
 
         # create the dynamics task and specify the integration update time
         dynProcess.addTask(self.scSim.CreateNewTask(self.simTaskName, simulationTimeStep))
-
-        # setup Gravity Body and initialize Earth as the central celestial body
-        gravFactory = simIncludeGravBody.gravBodyFactory()
-        # moon = gravFactory.createMoon()
-        sun = gravFactory.createSun()
-        planet = gravFactory.createEarth()
-        planet.isCentralBody = True          # ensure this is the central gravitational body
-        if b_set.useSphericalHarmonics:
-            # If extra customization is required, see the createEarth() macro to change additional values.
-            planet.useSphericalHarmonicsGravityModel(bskPath + '/supportData/LocalGravData/GGM03S-J2-only.txt', 2)
-
-            # The value 2 indicates that the first two harmonics, excluding the 0th order harmonic,
-            # are included.  This harmonics data file only includes a zeroth order and J2 term.
-        mu = planet.mu
-
-        # Add SPICE publisher (Sun + Earth)
-        spicePath = os.path.join(bskPath, "supportData", "EphemerisData") + os.sep
-        spiceKernels = ["de430.bsp", "naif0012.tls", "de-403-masses.tpc", "pck00010.tpc"]
-        spiceTime = self.to_spice_utc(cfg.startTime)
         
-        spiceObj = gravFactory.createSpiceInterface(
-            path=spicePath,
-            time=spiceTime,
-            spiceKernelFileNames=spiceKernels,
-            spicePlanetNames=["sun", "earth"],
-            epochInMsg=False
-        )
 
-        spiceObj.zeroBase = "earth"
-        self.scSim.AddModelToTask(self.simTaskName, spiceObj)
+        ######################################################################
+        # Initialize planets according to config and configure their gravity #
+        ######################################################################
+        gravFactory, spiceObj = self.conditional_planet_gravity_generation()
 
-        # Define 
-        sunMsg   = spiceObj.planetStateOutMsgs[0]
-        earthMsg = spiceObj.planetStateOutMsgs[1]
 
-        ####### FOR DEBUG ###############################
-        self.sunRec = sunMsg.recorder(samplingTime)
-        self.earthRec = earthMsg.recorder(samplingTime)
-        self.scSim.AddModelToTask(self.simTaskName, self.sunRec)
-        self.scSim.AddModelToTask(self.simTaskName, self.earthRec)
-        #################################################
+        ######################################################
+        # Initialize Eclipse Model (Earth eclipsing the Sun) #
+        ######################################################
+        sunMsg, eclipseObj = self.conditional_eclipse_init(spiceObj)
 
 
         ##############################################
@@ -143,25 +114,10 @@ class BasiliskSimulator:
         # Initialize the exponential density atmosphere model iff b_set.useExponentialDensityDrag == True
         atm = self.conditional_atmosphere_init()
 
-        
-        ######################################################
-        # Initialize Eclipse Model (Earth eclipsing the Sun) #
-        ######################################################
-        eclipseObj = eclipse.Eclipse()
-        eclipseObj.sunInMsg.subscribeTo(sunMsg)   # Sun
-        eclipseObj.addPlanetToModel(earthMsg)        # Earth occluder
-        self.scSim.AddModelToTask(self.simTaskName, eclipseObj)
-
-        
 
         #################################################################
         # Initialize scObjects and scRecorders, and attach force models #
         #################################################################
-
-        # Recorder for the sun state
-        # sunRec = spiceObj.planetStateOutMsgs[0].recorder(samplingTime)
-        # self.scSim.AddModelToTask(self.simTaskName, sunRec)
-        # self.sunRec = sunRec
         
         # Initialize empty containers for to-be-defined Spacecraft objects and its recorders
         self.scObjects: list[spacecraft.Spacecraft] = []
@@ -187,7 +143,7 @@ class BasiliskSimulator:
                 # Get initial conditions corresponding to satellites separated by an arbitrary angle 
                 # in the same orbital plane
                 separationAng = 20.0 * macros.D2R
-                rN, vN = self.spaced_satellites_on_same_orbital_plane(i, separationAng, mu)
+                rN, vN = self.spaced_satellites_on_same_orbital_plane(i, separationAng, gravFactory.gravBodies["earth"].mu)
 
                 # Edit and uncomment this function to use user-defined initial states:
                 # rN, vN = self.custom_initial_states(i)
@@ -203,33 +159,18 @@ class BasiliskSimulator:
             
             
             # ---- Main graviational attraction, Spherical Harmonics and 3rd body perturbation ----
-            # Add all gravity bodies to this spacecraft
+            # The gravitational sources and models have already been defined gravFactory in accordance with cfg
             gravFactory.addBodiesTo(scObj)
             
-            
+
             # ---- Drag effector (exponential density + cannonball) ----
             scObj = self.conditional_drag_effector(sat, scObj, atm)
             
             
             # ---- SRP effector (cannonball) ----
             # Register this spacecraft with the eclipse model to get its own eclipse msg
-            eclipseObj.addSpacecraftToModel(scObj.scStateOutMsg)
-
-            # Define srp
-            srp = radiationPressure.RadiationPressure()
-            srp.setUseCannonballModel()
-            srp.coefficientReflection = getattr(sat, "Cr", 1.35)
-            srp.area = getattr(sat, "A_srp", 0.06)  
-
-            # Subscribe to Sun ephemeris + this spacecraft’s eclipse factor
-            srp.sunEphmInMsg.subscribeTo(sunMsg)
-            srp.sunEclipseInMsg.subscribeTo(eclipseObj.eclipseOutMsgs[-1])  # last added = this SC
-
-            # Mount SRP onto the spacecraft and schedule it
-            scObj.addDynamicEffector(srp)
-            self.scSim.AddModelToTask(self.simTaskName, srp)
+            scObj = self.conditional_srp_effector(sat, scObj, sunMsg, eclipseObj)
             
-           
            
             # ---- Define and append scRecorders and scObjects ----
             # Create object state and force recorders
@@ -256,7 +197,7 @@ class BasiliskSimulator:
         
         
 
-    def run(self):
+    def run(self) -> None:
         # Execute the simulation
         logging.debug("Basilisk simulation running...")
 
@@ -320,12 +261,17 @@ class BasiliskSimulator:
         logging.debug("Basilisk simulation complete")
 
         ############### DEBUG ###############
-        # print("||sat1 position|| @0 [m]   =", np.linalg.norm(self.sim_data.sim_data[0].pos))
+        # # Plot initial positions of the 1st satellite, the sun, the earth and the moon (if defined)
+        # print("||sat1 position|| @0 [m]   =", np.linalg.norm(self.sim_data.sim_data[0].pos[:,0]))
         # print(self.sunRec)
         # sun_pos = np.asarray(self.sunRec.PositionVector)[0]
         # earth_pos = np.asarray(self.earthRec.PositionVector)[0]
-        # print("||Sun position|| @0 [m]   =", np.linalg.norm(sun_pos))
+        # if self.moonRec is not None: 
+        #     moon_pos = np.asarray(self.moonRec.PositionVector)[0] 
+        # else: moon_pos = None
         # print("||Earth position|| @0 [m] =", np.linalg.norm(earth_pos))
+        # print("||Sun position|| @0 [m]   =", np.linalg.norm(sun_pos))
+        # if moon_pos is not None: print("||Moon position|| @0 [m] =", np.linalg.norm(moon_pos))
         #############################################
 
 
@@ -345,6 +291,66 @@ class BasiliskSimulator:
         
         # Log data to file
         self.sim_data.write_data_to_file(self.cfg.timestamp_str, "bsk")
+
+
+    def conditional_planet_gravity_generation(self) -> tuple[simIncludeGravBody.gravBodyFactory, spiceInterface.SpiceInterface]:
+        """
+        Initialize a gravBodyFactory and SPICE interface. 
+        Always generate the Earth and Sun, but disable the Sun's gravity if useSun3rdBody == False. 
+        The Moon is generated iff useMoon3rdBody == True. 
+        Modify the Earth's gravity body to include spherical harmonics iff useSphericalHarmonics == True. 
+        Always initialize SPICE interface for accurate positions for the gravitational bodies.
+        
+        :param self: 
+        :return: gravBodyFactory instance 'gravFactory'
+        :rtype: gravBodyFactory
+        :return: SpiceInterface instance 'spiceObj'
+        :rtype: SpiceInterface
+        """
+        # Always generate earth and sun gravitational bodies 
+        # (Sun also needed for eclipse model)
+        gravFactory = simIncludeGravBody.gravBodyFactory()
+        earth = gravFactory.createEarth()
+        sun = gravFactory.createSun()
+        
+        # Disable the Sun's gravity if useSun3rdBody == False
+        if not self.cfg.b_set.useSun3rdBody:
+            sun.mu = 0
+
+        # Create the Moon only if useMoon3rdBody == True
+        if self.cfg.b_set.useMoon3rdBody:
+            moon = gravFactory.createMoon()
+        
+        # Set Earth as the central gravitational body
+        earth.isCentralBody = True
+
+        # Use spherical harmonics if useSphericalHarmonics == True
+        if self.cfg.b_set.useSphericalHarmonics:
+            # If extra customization is required, see the createEarth() macro to change additional values.
+            earth.useSphericalHarmonicsGravityModel(__path__[0] + '/supportData/LocalGravData/GGM03S-J2-only.txt', 2)
+
+            # The value 2 indicates that the first two harmonics, excluding the 0th order harmonic,
+            # are included.  This harmonics data file only includes a zeroth order and J2 term.
+        
+        # Initialize SPICE publisher to get accurate positions of the planets defined within gravFactory. 
+        spicePath = os.path.join(__path__[0], "supportData", "EphemerisData") + os.sep
+        spiceKernels = ["de430.bsp", "naif0012.tls", "de-403-masses.tpc", "pck00010.tpc"]
+        spiceTime = self.to_spice_utc(self.cfg.startTime)
+        
+        # Will always create SPICE objects "earth" and "sun". "moon" is created if useMoon3rdBody == True
+        spiceObj = gravFactory.createSpiceInterface(
+            path=spicePath,
+            time=spiceTime,
+            spiceKernelFileNames=spiceKernels,
+            epochInMsg=False
+        )
+        spiceObj.zeroBase = "earth"
+        
+        # Schedule object to simualtion process
+        self.scSim.AddModelToTask(self.simTaskName, spiceObj)
+
+
+        return gravFactory, spiceObj
 
 
     def conditional_atmosphere_init(self) -> Optional[exponentialAtmosphere.ExponentialAtmosphere]:
@@ -424,6 +430,106 @@ class BasiliskSimulator:
         return scObj
             
 
+    def conditional_eclipse_init(self, 
+                             spiceObj: spiceInterface.SpiceInterface
+                             ) -> tuple[Optional[Any], Optional[eclipse.Eclipse]]:
+        """
+        Initializes an eclipse model
+        
+        :param self: 
+        :param spiceObj: SPICE interface giving the accurate position of the Earth (idx 0), Sun (idx 1) and Moon (idx 2, if created)
+        :type spiceObj: spiceInterface.SpiceInterface
+        :return: Sun message, Eclipse model if useSRP == True. None, None otherwise.
+        :rtype: tuple[Any | None, Eclipse | None]
+        """
+
+        # Don't set up SPICE or Eclipse model if config defines useSRP == False
+        if not self.cfg.b_set.useSRP:
+            return None, None
+
+        # Fetch the Earth's and Sun's position from the SPICE publisher.
+        # The Earth and Sun will always have index [0] and [1] because gravFactory always creates Earth first, then Sun.
+        # See 'conditional_planet_gravity_generation()' func for logic. 
+        earthMsg = spiceObj.planetStateOutMsgs[0]
+        sunMsg   = spiceObj.planetStateOutMsgs[1]
+
+        # Initialize eclipse mode (when the Earth eclipses the Sun)
+        eclipseObj = eclipse.Eclipse()
+        eclipseObj.sunInMsg.subscribeTo(sunMsg)
+        eclipseObj.addPlanetToModel(earthMsg) # Earth occluder
+        
+        # Schedule object to simualtion process
+        self.scSim.AddModelToTask(self.simTaskName, eclipseObj) 
+
+
+        ####### FOR DEBUG ###############################
+        # earthMsg = spiceObj.planetStateOutMsgs[0]
+        # sunMsg   = spiceObj.planetStateOutMsgs[1]
+        # try:
+        #     moonMsg = spiceObj.planetStateOutMsgs[2]
+        # except:
+        #     logging.debug("The Moon gravitational entity is not defined in the SPICE interface")
+        # self.sunRec = sunMsg.recorder(samplingTime)
+        # self.earthRec = earthMsg.recorder(samplingTime)
+        # try:
+        #     self.moonRec = moonMsg.recorder(samplingTime) # type: ignore
+        # except:
+        #     self.moonRec = None
+        # self.scSim.AddModelToTask(self.simTaskName, self.sunRec)
+        # self.scSim.AddModelToTask(self.simTaskName, self.earthRec)
+        # if self.moonRec is not None: self.scSim.AddModelToTask(self.simTaskName, self.moonRec)
+        #################################################
+
+
+        return sunMsg, eclipseObj
+    
+
+    def conditional_srp_effector(self, 
+                                 sat: Satellite,
+                                 scObj: spacecraft.Spacecraft,
+                                 sunMsg: Optional[Any],
+                                 eclipseObj: Optional[eclipse.Eclipse]) -> spacecraft.Spacecraft:
+        """
+        if the simulation is configured to use SRP, then define the SRP effector,
+        mount it on the satellite object, and schedule it in the simulation task
+        
+        :param self: 
+        :param sat: The current Satellite object in the loop
+        :type sat: Satellite
+        :param scObj: The corresponding Basilisk spacecraft object in the cuurent iteration
+        :type scObj: spacecraft.Spacecraft
+        :param sunMsg: The Sun's position or None
+        :type sunMsg: Optional[Any]
+        :param eclipseObj: Eclipse model
+        :type eclipseObj: Optional[eclipse.Eclipse]
+        :return: Unmodified scObj if useSRP == false.
+          scObject with mounted SRP force if useSRP == true
+        :rtype: Spacecraft
+        """
+
+        # Don't mount SRP effector on the spacecraft object if useSRP == False or any Optional inputs are None
+        if (not self.cfg.b_set.useSRP) or (sunMsg is None) or (eclipseObj is None):
+            return scObj
+        
+        # Register this spacecraft with the eclipse model to get its own eclipse msg
+        eclipseObj.addSpacecraftToModel(scObj.scStateOutMsg)
+
+        # Define srp
+        srp = radiationPressure.RadiationPressure()
+        srp.setUseCannonballModel()
+        srp.coefficientReflection = getattr(sat, "Cr", 1.0)
+        srp.area = getattr(sat, "A_srp", 0.06)  
+
+        # Subscribe to Sun ephemeris + this spacecraft’s eclipse factor
+        srp.sunEphmInMsg.subscribeTo(sunMsg)
+        srp.sunEclipseInMsg.subscribeTo(eclipseObj.eclipseOutMsgs[-1])  # last added = this SC
+
+        # Mount SRP onto the spacecraft and schedule it
+        scObj.addDynamicEffector(srp)
+        self.scSim.AddModelToTask(self.simTaskName, srp)
+
+        return scObj
+
 
     @staticmethod
     def spaced_satellites_on_same_orbital_plane(satellite_idx: int, 
@@ -459,6 +565,7 @@ class BasiliskSimulator:
 
         return rN, vN
     
+
     @staticmethod
     def custom_initial_states(satellite_idx: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
