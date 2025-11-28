@@ -1,6 +1,7 @@
 import os
 import logging
 import numpy as np
+from typing import Optional
 from numpy.typing import NDArray
 from datetime import datetime, timezone
 
@@ -10,7 +11,8 @@ from object_definitions.Satellite_def import Satellite
 from object_definitions.SimData_def import SimData, SimObjData
 
 from Basilisk import __path__
-from Basilisk.simulation import spacecraft, radiationPressure, spiceInterface, eclipse
+from Basilisk.simulation import (spacecraft, radiationPressure, spiceInterface, eclipse,  
+                                exponentialAtmosphere, dragDynamicEffector)
 from Basilisk.utilities import (SimulationBaseClass, macros, orbitalMotion,
                                 simIncludeGravBody, unitTestSupport, vizSupport)
 
@@ -84,8 +86,8 @@ class BasiliskSimulator:
         # Create a sim module as an empty container
         self.scSim = SimulationBaseClass.SimBaseClass()
 
-        # Configure the use of simulation progress bar (shown in terminal)
-        self.scSim.SetProgressBar(b_set.show_progress_bar)
+        # Configure the use of simulation progress bar
+        self.scSim.SetProgressBar(True)
 
         # Create the simulation process
         dynProcess = self.scSim.CreateNewProcess(simProcessName)
@@ -133,9 +135,18 @@ class BasiliskSimulator:
         self.scSim.AddModelToTask(self.simTaskName, self.sunRec)
         self.scSim.AddModelToTask(self.simTaskName, self.earthRec)
         #################################################
+
+
+        ##############################################
+        # Initialize Earth Exponential Density Model #
+        ##############################################
+        # Initialize the exponential density atmosphere model iff b_set.useExponentialDensityDrag == True
+        atm = self.conditional_atmosphere_init()
+
         
-        
-        # ---- Eclipse model (Earth eclipsing the Sun) ----
+        ######################################################
+        # Initialize Eclipse Model (Earth eclipsing the Sun) #
+        ######################################################
         eclipseObj = eclipse.Eclipse()
         eclipseObj.sunInMsg.subscribeTo(sunMsg)   # Sun
         eclipseObj.addPlanetToModel(earthMsg)        # Earth occluder
@@ -143,9 +154,9 @@ class BasiliskSimulator:
 
         
 
-        ##########################################
-        # Initialize scObjects and scRecorders #
-        ##########################################
+        #################################################################
+        # Initialize scObjects and scRecorders, and attach force models #
+        #################################################################
 
         # Recorder for the sun state
         # sunRec = spiceObj.planetStateOutMsgs[0].recorder(samplingTime)
@@ -159,18 +170,18 @@ class BasiliskSimulator:
         # get satellites from config
         satellites = self.cfg.satellites
 
-        # Populate object containers
+        # Define all satellite parameters, attach all applied forces, and make it part of the 
+        #################################################################################################
+        # Define all spacecraft objects, attach all force models, add it and recorders to the simulator #
+        #################################################################################################
         for i, sat in enumerate(satellites):
             # Initialize spacecraft object
             scObj = spacecraft.Spacecraft()
             scObj.ModelTag = sat.name
-            scObj.hub.mHub = getattr(sat, "mass", 50.0)  # kg # TODO: Config param
+            scObj.hub.mHub = getattr(sat, "m", 6.0)  # kg # TODO: Config param
 
             # Add spacecraft object to the simulation process
             self.scSim.AddModelToTask(self.simTaskName, scObj)
-
-            # Add all gravity bodies to this spacecraft
-            gravFactory.addBodiesTo(scObj)
 
             if b_set.override_skf_initial_state:
                 # Get initial conditions corresponding to satellites separated by an arbitrary angle 
@@ -191,16 +202,26 @@ class BasiliskSimulator:
             scObj.hub.v_CN_NInit = vN  # m/s - v_BN_N
             
             
+            # ---- Main graviational attraction, Spherical Harmonics and 3rd body perturbation ----
+            # Add all gravity bodies to this spacecraft
+            gravFactory.addBodiesTo(scObj)
+            
+            
+            # ---- Drag effector (exponential density + cannonball) ----
+            scObj = self.conditional_drag_effector(sat, scObj, atm)
+            
+            
+            # ---- SRP effector (cannonball) ----
             # Register this spacecraft with the eclipse model to get its own eclipse msg
             eclipseObj.addSpacecraftToModel(scObj.scStateOutMsg)
 
-            # ---- SRP effector (cannonball) ----
+            # Define srp
             srp = radiationPressure.RadiationPressure()
             srp.setUseCannonballModel()
-            srp.area = getattr(sat, "A_srp", 0.5)          # m^2 TODO: (configure per sat)
             srp.coefficientReflection = getattr(sat, "Cr", 1.35)
+            srp.area = getattr(sat, "A_srp", 0.06)  
 
-            # Inputs: Sun ephemeris + this spacecraft’s eclipse factor
+            # Subscribe to Sun ephemeris + this spacecraft’s eclipse factor
             srp.sunEphmInMsg.subscribeTo(sunMsg)
             srp.sunEclipseInMsg.subscribeTo(eclipseObj.eclipseOutMsgs[-1])  # last added = this SC
 
@@ -208,6 +229,9 @@ class BasiliskSimulator:
             scObj.addDynamicEffector(srp)
             self.scSim.AddModelToTask(self.simTaskName, srp)
             
+           
+           
+            # ---- Define and append scRecorders and scObjects ----
             # Create object state and force recorders
             scRec = scObj.scStateOutMsg.recorder(samplingTime)
             # srpRec = self.make_srp_recorder(srp, samplingTime)  
@@ -219,7 +243,7 @@ class BasiliskSimulator:
             # Append defined spacecraft object and scRec to scObjects and scRecorders, respectively
             self.scObjects.append(scObj)
             self.scRecorders.append(scRec)
-            # self.srpRecorders.append(srpRec)
+            # self.srpRecorders.append(srpRec)       
 
 
 
@@ -321,6 +345,84 @@ class BasiliskSimulator:
         
         # Log data to file
         self.sim_data.write_data_to_file(self.cfg.timestamp_str, "bsk")
+
+
+    def conditional_atmosphere_init(self) -> Optional[exponentialAtmosphere.ExponentialAtmosphere]:
+        
+        # If the simulation is configured to not use drag, return None
+        if not self.cfg.b_set.useExponentialDensityDrag:
+            return None
+        
+        # Initialize ExponentialAtmosphere object
+        atm = exponentialAtmosphere.ExponentialAtmosphere()
+
+        # Atmosphere parameters
+        atm.ModelTag = "expAtm"
+        atm.planetRadius = 6378136.6            # [m] WGS-84 equatorial radius
+        atm.scaleHeight = 7200.0                 # [m] typical scale height
+        atm.baseDensity = 1.225                  # [kg/m^3] density at 0 m
+        atm.envMinReach = 0.0                    # [m]
+        atm.envMaxReach = 1000e3             # [m] cap model above 1000 km
+        self.scSim.AddModelToTask(self.simTaskName, atm)
+
+        return atm
+    
+
+    def conditional_drag_effector(self, 
+                                  sat: Satellite,
+                                  scObj: spacecraft.Spacecraft,
+                                  atm: Optional[exponentialAtmosphere.ExponentialAtmosphere]
+                                 ) -> spacecraft.Spacecraft:
+        """
+        if the simulation is configured to use exponential density drag, then define the drag effector,
+        mount it on the satellite object, and schedule it in the simulation task
+        
+        :param self: 
+
+        :param sat: The current Satellite object in the loop
+        :type sat: Satellite
+
+        :param scObj: The corresponding Basilisk spacecraft object in the cuurent iteration
+        :type scObj: spacecraft.Spacecraft
+
+        :param atm: Exponential density atmospheric model
+        :type atm: Optional[exponentialAtmosphere.ExponentialAtmosphere]
+        
+        :return: Unmodified scObj if useExponentialDensityDrag == false.
+          scObject with mounted atmospheric drag if  useExponentialDensityDrag == true
+        :rtype: Spacecraft
+        """
+        
+        if (not self.cfg.b_set.useExponentialDensityDrag) or (atm is None):
+            return scObj
+        
+        if not (isinstance(atm, exponentialAtmosphere.ExponentialAtmosphere)):
+            raise TypeError("The atmosphere object 'atm' is not of type exponentialAtmosphere.ExponentialAtmosphere")
+
+        # ---- Drag effector (exponential density + cannonball) ----
+        # Register this spacecraft with the atmosphere model to get its own atm mesg
+        atm.addSpacecraftToModel(scObj.scStateOutMsg)
+
+        # Define drag
+        drag = dragDynamicEffector.DragDynamicEffector()
+        drag.cannonballDrag()
+
+        # Set core parameters
+        core = dragDynamicEffector.DragBaseData()
+        core.dragCoeff = getattr(sat, "Cd", 2.2)
+        core.projectedArea = getattr(sat, "A_drag", 100)
+        drag.coreParams = core
+
+        # Subscribe to density from this spacecraft's atmosphere message
+        atmMsg = atm.envOutMsgs[-1]
+        drag.atmoDensInMsg.subscribeTo(atmMsg)
+
+        # Mount and schedule
+        scObj.addDynamicEffector(drag)
+        self.scSim.AddModelToTask(self.simTaskName, drag)
+
+        return scObj
+            
 
 
     @staticmethod

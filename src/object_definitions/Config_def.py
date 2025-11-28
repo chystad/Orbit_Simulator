@@ -36,9 +36,10 @@ SkyfiledConfig:
 @dataclass_json
 @dataclass
 class BasiliskSettings:
-    useSphericalHarmonics: bool
-    show_progress_bar: bool
     deltaT: float
+    useSphericalHarmonics: bool
+    useExponentialDensityDrag: bool
+    useSRP:bool
     override_skf_initial_state: bool
 
 @dataclass_json
@@ -91,9 +92,10 @@ class Config:
         data_timestamp_to_plot = d_cfg['PLOTTING']['data_timestamp_to_plot'] # str
 
         # Fetch from basilisk.yaml
-        useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
-        show_progress_bar = b_cfg['BASILISK_SIMULATION']['show_progress_bar']
         bsk_deltaT = b_cfg['BASILISK_SIMULATION']['deltaT']
+        useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
+        useExponentialDensityDrag = b_cfg['BASILISK_SIMULATION']['useExponentialDensityDrag']
+        useSRP = b_cfg['BASILISK_SIMULATION']['useSRP']
         override_skf_initial_state = b_cfg['BASILISK_SIMULATION']['override_skf_initial_state']
 
         # Fetch from skyfield.yaml
@@ -117,9 +119,10 @@ class Config:
 
         # Assign BasiliskSettings instance to b_set attribute
         self.b_set = BasiliskSettings(
-            useSphericalHarmonics,
-            show_progress_bar,
             bsk_deltaT,
+            useSphericalHarmonics,
+            useExponentialDensityDrag,
+            useSRP,
             override_skf_initial_state
         )
 

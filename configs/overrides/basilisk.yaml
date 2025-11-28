@@ -2,5 +2,6 @@
 BASILISK_SIMULATION:
   deltaT: 10 # Solver time step [seconds]
   useSphericalHarmonics: true
-  show_progress_bar: true
+  useExponentialDensityDrag: true
+  useSRP: true
   override_skf_initial_state: false
