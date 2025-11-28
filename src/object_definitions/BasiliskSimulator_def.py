@@ -17,6 +17,7 @@ from Basilisk.utilities import (SimulationBaseClass, macros, orbitalMotion,
                                 simIncludeGravBody, unitTestSupport, vizSupport)
 
 VIZARD_SAVE_PATH = "/home/chris/code/Orbit_Simulator/data/_VizFiles/bsk_sim.bin"
+GRAV_COEFF_FILE_PATH = "data/grav_coeff/GGM03S.txt"
 
 """
 =========================================================================================================
@@ -327,7 +328,10 @@ class BasiliskSimulator:
         # Use spherical harmonics if useSphericalHarmonics == True
         if self.cfg.b_set.useSphericalHarmonics:
             # If extra customization is required, see the createEarth() macro to change additional values.
-            earth.useSphericalHarmonicsGravityModel(__path__[0] + '/supportData/LocalGravData/GGM03S-J2-only.txt', 2)
+            earth.useSphericalHarmonicsGravityModel(
+                GRAV_COEFF_FILE_PATH, 
+                self.cfg.b_set.sphericalHarmonicsDegree
+            )
 
             # The value 2 indicates that the first two harmonics, excluding the 0th order harmonic,
             # are included.  This harmonics data file only includes a zeroth order and J2 term.

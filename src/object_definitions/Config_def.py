@@ -37,6 +37,7 @@ SkyfiledConfig:
 @dataclass
 class BasiliskSettings:
     deltaT: float
+    sphericalHarmonicsDegree: int
     useSphericalHarmonics: bool
     useExponentialDensityDrag: bool
     useSRP: bool
@@ -95,6 +96,7 @@ class Config:
 
         # Fetch from basilisk.yaml
         bsk_deltaT = b_cfg['BASILISK_SIMULATION']['deltaT']
+        sphericalHarmonicsDegree = b_cfg['BASILISK_SIMULATION']['sphericalHarmonicsDegree']
         useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
         useExponentialDensityDrag = b_cfg['BASILISK_SIMULATION']['useExponentialDensityDrag']
         useSRP = b_cfg['BASILISK_SIMULATION']['useSRP']
@@ -124,6 +126,7 @@ class Config:
         # Assign BasiliskSettings instance to b_set attribute
         self.b_set = BasiliskSettings(
             bsk_deltaT,
+            sphericalHarmonicsDegree,
             useSphericalHarmonics,
             useExponentialDensityDrag,
             useSRP,

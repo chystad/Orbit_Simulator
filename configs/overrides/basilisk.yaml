@@ -1,6 +1,7 @@
 # These configuration options are currently in configs/default.yaml
 BASILISK_SIMULATION:
   deltaT: 50 # Solver time step [seconds]
+  sphericalHarmonicsDegree: 4 # int
   useSphericalHarmonics: true
   useExponentialDensityDrag: true
   useSRP: false
