@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from PIL import PngImagePlugin
 from pathlib import Path
-from typing import Optional
 
 from object_definitions.Config_def import Config
 from object_definitions.SimData_def import SimData
@@ -24,10 +23,12 @@ def plot(cfg: Config) -> None:
     
     Args:
         cfg (Config): Simulation config
-        alt_datafilename_to_plot (Optional[str]): Only plots the current simulation if this is set to 'None'. 
-            str containing the timestamp (the part of the filename before '_skf' or '_bsk').
-            of the datafiles 
     """
+    # plot() does nothing if show_plots == false and save_plots == false.
+    # Exit if that's the case
+    if (not cfg.show_plots) and (not cfg.save_plots):
+        logging.debug("Config settings specify: show_plots == false and save_plots == false, which makes the plotting function obsolete. -> Exiting plot()...")
+        return
 
     # Stop plots to clutter the terminal with debug info
     quiet_plots()
@@ -55,18 +56,24 @@ def plot(cfg: Config) -> None:
     ############
     # Plotting #
     ############
+    # Comment/Uncomment the plotting functions manually to plot the the different plots
 
-    # plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
+    plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    # plot_simulator_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_simulator_pos_diff(cfg, skf_sim_data, bsk_sim_data)
     
-    plot_rel_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
+    # plot_rel_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    plot_simulator_rel_pos_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_simulator_rel_pos_diff(cfg, skf_sim_data, bsk_sim_data)
+
+    plot_altitude_comparison(cfg, skf_sim_data, bsk_sim_data)
 
     
     
 
+#################################
+# Plotting function definitions #
+#################################
 
 def plot_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
@@ -150,7 +157,7 @@ def plot_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimDat
         fig = plt.gcf()
         plt_identifier = f"{main_plt_identifier}_{sat_name}"
         conditional_save_plot(cfg, fig, plt_identifier)
-        # plt.show()
+        conditional_show_plot(cfg)
 
 
 def plot_rel_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
@@ -254,10 +261,10 @@ def plot_rel_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: Si
         fig = plt.gcf()
         plt_identifier = f"{main_plt_identifier}_{sat_name}"
         conditional_save_plot(cfg, fig, plt_identifier)
-        plt.show()
+        conditional_show_plot(cfg)
     
 
-def plot_simulator_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+def plot_simulator_pos_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
     For each satellite i, create a figure with two stacked subplots:
       Top:  (bsk.pos - skf.pos) components over time
@@ -354,7 +361,7 @@ def plot_simulator_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimDat
         fig = plt.gcf()
         plt_identifier = f"{main_plt_identifier}_{sat_name}"
         conditional_save_plot(cfg, fig, plt_identifier)
-        # plt.show()
+        conditional_show_plot(cfg)
 
 
 def plot_simulator_rel_pos_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
@@ -501,8 +508,104 @@ def plot_simulator_rel_pos_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data
         fig = plt.gcf()
         plt_identifier = f"{main_plt_identifier}_{sat_name}_vs_{chief_sat_name}"
         conditional_save_plot(cfg, fig, plt_identifier)
-        # plt.show()  # Optional, kept commented as in your other functions
+        conditional_show_plot(cfg)
 
+
+def plot_altitude_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+    """
+    Plot altitude vs time for each satellite, for both Skyfield and Basilisk, in a single figure.
+
+    Altitude is defined as ||pos|| - R_earth_mean, where pos is the ECI position vector.
+    """
+    main_plt_identifier = "AltComp"  # Used in the saved plot name
+    skf_list = skf_sim_data.sim_data
+    bsk_list = bsk_sim_data.sim_data
+
+    if len(skf_list) != len(bsk_list):
+        raise ValueError(
+            f"Satellite count mismatch: SKF has {len(skf_list)}, BSK has {len(bsk_list)}."
+        )
+
+    n_sats = len(skf_list)
+    if n_sats == 0:
+        return
+
+    # Mean Earth radius [m] (approx. WGS-84 mean radius)
+    EARTH_MEAN_RADIUS_M = 6371e3
+
+    # Choose some colors for different satellites (will cycle if more sats than colors)
+    sat_colors = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+        "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
+        "#bcbd22", "#17becf",
+    ]
+
+    # Create a single figure for all satellites
+    plt.figure(figsize=(PLT_WIDTH, PLT_HEIGHT))
+    ax = plt.gca()
+
+    for i in range(n_sats):
+        skf = skf_list[i]
+        bsk = bsk_list[i]
+
+        # Basic shape sanity checks
+        if skf.pos.shape[0] != 3 or bsk.pos.shape[0] != 3:
+            raise ValueError(f"pos must be shape (3, n) for satellite index {i}.")
+        if skf.time.ndim not in (1, 2) or bsk.time.ndim not in (1, 2):
+            raise ValueError(f"time must be 1D or (1, n) for satellite index {i}.")
+
+        # Flatten times to 1D and convert to hours
+        t_skf = np.ravel(skf.time) / (60 * 60)  # [hours]
+        t_bsk = np.ravel(bsk.time) / (60 * 60)  # [hours]
+
+        # Compute altitude = ||pos|| - R_earth_mean
+        skf_r = np.linalg.norm(skf.pos, axis=0)
+        bsk_r = np.linalg.norm(bsk.pos, axis=0)
+        skf_alt = skf_r - EARTH_MEAN_RADIUS_M
+        bsk_alt = bsk_r - EARTH_MEAN_RADIUS_M
+
+        color = sat_colors[i % len(sat_colors)]
+        sat_name = (
+            skf.satellite_name
+            if getattr(skf, "satellite_name", None)
+            else f"Satellite {i+1}"
+        )
+
+        # Skyfield: solid line
+        ax.plot(
+            t_skf,
+            skf_alt,
+            label=f"SKF {sat_name}",
+            linewidth=1.8,
+            linestyle="-",
+            color=color,
+        )
+
+        # Basilisk: dashed line, same color
+        ax.plot(
+            t_bsk,
+            bsk_alt,
+            label=f"BSK {sat_name}",
+            linewidth=1.8,
+            linestyle="--",
+            color=color,
+        )
+
+    ax.set_title("Altitude comparison for all satellites")
+    ax.set_xlabel("Time (hours)")
+    ax.set_ylabel("Altitude (m)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(ncol=2)
+
+    fig = plt.gcf()
+    plt_identifier = f"{main_plt_identifier}_AllSats"
+    conditional_save_plot(cfg, fig, plt_identifier)
+    conditional_show_plot(cfg)
+
+
+########################################
+# Plotting helper function definitions #
+########################################
 
 def conditional_save_plot(cfg: Config, fig: Figure, plt_identifier: str) -> None:
     """
@@ -538,6 +641,14 @@ def conditional_save_plot(cfg: Config, fig: Figure, plt_identifier: str) -> None
 
     logging.debug(f"Saved figure: {filename}")
 
+
+def conditional_show_plot(cfg: Config) -> None:
+    # Show plot only if cfg.show_plots == true
+    if cfg.show_plots:
+        plt.show()
+    else:
+        return
+ 
 
 def quiet_plots() -> None:
     # Only show warnings and errors globally

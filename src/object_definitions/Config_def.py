@@ -61,7 +61,8 @@ class Config:
             startTime (str):
             simulationDuration (float):
             tle_export_path (str):
-            save_plots (book):              Save plots if true
+            show_plots (bool):              Show plots if true
+            save_plots (bool):              Save plots if true
             bypass_sim_to_plot (bool):      If true: Skip the simulation to plot old data
             data_timestamp_to_plot (str):   Timestamp str for the data to plot. Only plot this if 'bypass_sim_to_plot' == true
             timestamp_str (str):            Used in the naming of data files. str holding the real-world simulation start time.
@@ -84,6 +85,7 @@ class Config:
         startTime_str = d_cfg['SIMULATION']['startTime'] # str
         simulationDuration = d_cfg['SIMULATION']['simulationDuration'] # float  
         tle_export_path = d_cfg['SIMULATION']['tle_export_path'] # str
+        show_plots = d_cfg['PLOTTING']['show_plots'] # bool
         save_plots = d_cfg['PLOTTING']['save_plots'] # bool
         bypass_sim_to_plot =  d_cfg['PLOTTING']['bypass_sim_to_plot'] # str
         data_timestamp_to_plot = d_cfg['PLOTTING']['data_timestamp_to_plot'] # str
@@ -106,6 +108,7 @@ class Config:
         self.startTime = startTime_str
         self.simulationDuration = simulationDuration
         self.tle_export_path = tle_export_path
+        self.show_plots = show_plots
         self.save_plots = save_plots
         self.bypass_sim_to_plot = bypass_sim_to_plot
         self.data_timestamp_to_plot = data_timestamp_to_plot
