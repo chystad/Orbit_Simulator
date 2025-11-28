@@ -1,4 +1,5 @@
 import os
+import shutil # For therminal width
 import logging
 import numpy as np
 from numpy.typing import NDArray
@@ -103,6 +104,12 @@ class SkyfieldSimulator():
         # Run sgp4 propagation to get position and velocity at all simualtion timesteps #
         #################################################################################
         sim_data: list[SimObjData] = []
+
+        n_sats = len(skf_satellites)
+        n_t = len(times_i)
+        total_steps = n_sats * n_t
+        current_step = 0
+
         for i, skf_sat in enumerate(skf_satellites):
             # Verify that we are iterating over the satellites in the correct order
             if not isinstance(skf_sat.name, str):
@@ -116,23 +123,27 @@ class SkyfieldSimulator():
             if not skf_sat_name == satellites[i].name:
                 raise NameError(f"There is a mismatch between the skf_satellites and the cfg.satellites. Satellite nr. {i} in skf_satellites is named {skf_sat.name} while the corresponding satellkite in cfg.satellites is named {satellites[i].name}")
             
-            # Getting states
-            position = np.array([skf_sat.at(t).position.m for t in times_i])
-            velocity = np.array([skf_sat.at(t).velocity.m_per_s for t in times_i])
+            # Pre-allocate for speed 
+            positions_eci = np.empty((len(times_i), 3), dtype=float)
+            velocities_eci = np.empty((len(times_i), 3), dtype=float)
 
-            # States in ECI frame
-            positions_eci = np.transpose(position)
-            velocities_eci = np.transpose(velocity)
+            # Getting states in ECI frame
+            for j, t in enumerate(times_i):
+                positions_eci[j, :] = skf_sat.at(t).position.m
+                velocities_eci[j, :] = skf_sat.at(t).velocity.m_per_s
+
+                current_step += 1
+                self.print_progress(current_step, total_steps)
 
             sim_object_data = SimObjData(
                 skf_sat_name,
                 sim_offset,
-                positions_eci,
-                velocities_eci
+                positions_eci.T,
+                velocities_eci.T,
             )
 
             sim_data.append(sim_object_data)
-
+        
         # Set SkyfieldSimulator attribute sim_data
         self.sim_data = SimData(sim_data)
 
@@ -285,33 +296,64 @@ class SkyfieldSimulator():
         ])
 
         return simulation_offset
+    
 
-
-
-
-        
-        
-
-    
-    
-    
-    
-    
-    
-    
-    def propagate_orbit(self) -> None:
+    @staticmethod
+    def print_progress(step: int, total: int, bar_len: int = 40) -> None:
         """
-        ==========================================================================
-        Propagate the satellite orbit for a given duration and a given time step =
-        =    startTime:  Start time of the propagation   [datetime]              =
-        =    duration:   Duration of the propagation     [seconds]               =
-        =    deltaT:     Time step for the propagation   [seconds]               =
-        =                                                                        =
-        =    OUTPUT:     Position and velocity of the satellite at each time     =
-        =      -> This function used "Skyfield" to propagate the satellite orbit =
-        =                                                                        =
-        =      self.position (propagated position)                               =
-        =      self.velocity (propagated velocity)                               =
-        ==========================================================================
+        Simple text-based progress bar.
+
+        Parameters
+        ----------
+        step : int
+            Current completed step (1-based).
+        total : int
+            Total number of steps.
+        prefix : str
+            Text shown before the progress bar.
+        bar_len : int
+            Character width of the bar.
         """
-        pass
+        yellow = "\033[33m"
+        reset = "\033[0m"
+        hide_cursor = "\033[?25l"
+        show_cursor = "\033[?25h"
+        prefix = "Progress: "
+        cursor_hidden = False
+
+        # Hide cursor on first call
+        if not cursor_hidden:
+            print(hide_cursor, end="", flush=True)
+            cursor_hidden = True
+
+        if total <= 0:
+            frac = 1.0
+        else:
+            frac = step / total
+
+        frac = max(0.0, min(1.0, frac))  # clamp to [0, 1]
+        percent = int(frac * 100.0)
+
+        # Terminal width
+        width = shutil.get_terminal_size().columns
+
+        # Reserve space for: prefix, ':  ', percent text '100.00%', two spaces
+        reserved = len(prefix) + 2 + len("100%")  # small safety margin
+        bar_len = max(10, width - reserved)  # prevent too-small bar
+
+        # Generate bar
+        filled = int(bar_len * frac)
+        bar = "█" * filled
+
+        # Color only the bar + percent in yellow
+        colored_prefix = f"{yellow}{prefix}{reset}"
+        colored_bar = f"{yellow}|{bar}{reset}"
+        colored_percent = f"{yellow}{percent:3d}%{reset}"
+
+        print(f"\r{colored_prefix}{colored_percent}{colored_bar} ", end="", flush=True)
+
+        # Show cursor again at 100%
+        if percent >= 100:
+            print(show_cursor, end="", flush=True)
+            cursor_hidden = False
+            print()  # newline at end
