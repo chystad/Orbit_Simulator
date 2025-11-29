@@ -37,6 +37,7 @@ SkyfiledConfig:
 @dataclass
 class BasiliskSettings:
     deltaT: float
+    integrator: str
     sphericalHarmonicsDegree: int
     useSphericalHarmonics: bool
     useExponentialDensityDrag: bool
@@ -96,6 +97,7 @@ class Config:
 
         # Fetch from basilisk.yaml
         bsk_deltaT = b_cfg['BASILISK_SIMULATION']['deltaT']
+        integrator = b_cfg['BASILISK_SIMULATION']['integrator']
         sphericalHarmonicsDegree = b_cfg['BASILISK_SIMULATION']['sphericalHarmonicsDegree']
         useSphericalHarmonics = b_cfg['BASILISK_SIMULATION']['useSphericalHarmonics']
         useExponentialDensityDrag = b_cfg['BASILISK_SIMULATION']['useExponentialDensityDrag']
@@ -126,6 +128,7 @@ class Config:
         # Assign BasiliskSettings instance to b_set attribute
         self.b_set = BasiliskSettings(
             bsk_deltaT,
+            integrator,
             sphericalHarmonicsDegree,
             useSphericalHarmonics,
             useExponentialDensityDrag,
@@ -273,7 +276,7 @@ class Config:
         satellites: list[Satellite] = []
         for sat, sat_info in all_sat_info.items():
             # Check if all satellite attributes are compatible with the Satellite object
-            allowed = {'name', 'tle_line1', 'tle_line2', 'custom_initial_pos', 'custom_initial_vel'} # NOTE: This must be updated of the config-format changes!
+            allowed = {'name', 'tle_line1', 'tle_line2', 'm_s', 'C_D', 'A_D', 'C_R', 'A_srp'} # NOTE: This must be updated of the config-format changes!
             unknown = set(sat_info) - allowed
             if unknown:
                 raise ValueError(f"{sat}: unknown keys for {unknown}")
@@ -294,6 +297,11 @@ class Config:
                 tle_line1,
                 tle_line2,
                 tle,
+                m_s = sat_info['m_s'],
+                C_D = sat_info['C_D'],
+                A_D = sat_info['A_D'],
+                C_R = sat_info['C_R'],
+                A_srp = sat_info['A_srp'],
                 init_pos = None, # This field will be populated by data from skyfield later
                 init_vel = None  # This field will be populated by data from skyfield later
             )

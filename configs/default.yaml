@@ -1,15 +1,15 @@
 # Global simulation configuration settings
 SIMULATION:
   startTime: "02.04.2025 12:00:00" # UTC time
-  simulationDuration: 48          # hours
-  tle_export_path: "data/tle_files/"
+  simulationDuration: 168.0 # hours
+  tle_export_path: "data/tle_files/" # TODO: move to Config_def
 
 # Plotting options
 PLOTTING:
   show_plots: true
   save_plots: true
   bypass_sim_to_plot: false
-  data_timestamp_to_plot: "20251128_143913" # Only plots this data if bypass_sim_to_plot == true
+  data_timestamp_to_plot: "20251129_015711" # Only plots this data if bypass_sim_to_plot == true
   plot_prev_sim: false # TODO: NOT IMPLEMENTED. Also, 'implement func that skips simulations if this is true
 
 # Global satellites and their TLE data
@@ -19,10 +19,20 @@ SATELLITES:
     name: "Chief"
     tle_line1: "1 51053U 22002BX  25308.62091721  .00030597  00000+0  55283-3 0  9995"    
     tle_line2: "2 51053  97.3162  18.5553 0003625  48.0410 312.1150 15.49656913211910"   
+    m_s: 6.0  # [kg] Satellite mass
+    C_D: 3  # Drag coefficient
+    A_D: 10000000 # [m^2] Cross-section area perpendicular to the velocity
+    C_R: 1.0  # Radiation pressure coefficient (0 reflecting, 1 absorbing)
+    A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector 
   satellite2:
     name: "Follower"
     tle_line1: "1 60531U 24149BR  25308.17016602  .00005181  00000+0  45510-3 0  9998"    
     tle_line2: "2 60531  97.7074  22.6954 0001936  74.1043 286.0392 14.97007322 66363" 
+    m_s: 6.0  # [kg] Satellite mass
+    C_D: 2.2  # Drag coefficient
+    A_D: 0.06 # [m^2] Cross-section area perpendicular to the velocity
+    C_R: 1.0  # Radiation pressure coefficient (0 reflecting, 1 absorbing)
+    A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector 
 
 # Skyfield specific settings
 SKYFIELD:
@@ -31,18 +41,6 @@ SKYFIELD:
 # Basilisk specific settings
 BASILISK:
   config_path: configs/overrides/basilisk.yaml
-
-# C_D: 2.2  # Drag coefficient
-# A_D: 0.06 # [m^2] Cross-section area perpendicular to the velocity
-# m_s: 6.0  # [kg] Satellite mass
-# C_R: 1    # Radiation pressure coefficient (0 reflecting, 1 absorbing)
-# A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector
-
-# m_s: 6.0  # [kg] Satellite mass
-# C_srp: 1    # Radiation pressure coefficient (0 reflecting, 1 absorbing)
-# C_D: 2.2  # Drag coefficient
-# A_D: 0.06 # [m^2] Cross-section area perpendicular to the velocity
-# A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector 
 
    
 
@@ -55,16 +53,13 @@ BASILISK:
   #   tle_line1: "1 25544U 98067A   20264.54791667  .00016717  00000-0  10270-3 0    9000"
   #   tle_line2: "2 25544  60.6434 247.4627 0007417 130.5364 329.6786 15.49315339245716"
 
-
-
-
-  satellite1: 
-    name: "GSAT0201 (GALILEO 5)"    
-    tle_line1: "1 40128U 14050A   25293.02891527 -.00000069  00000+0  00000+0 0  9994"
-    tle_line2: "2 40128  49.1381 283.2505 1642820 170.2404 193.3914  1.85519627 73867"
-  satellite2: 
-    name: GSAT0202 (GALILEO 6)    
-    tle_line1: "1 40129U 14050B   25292.20739736 -.00000067  00000+0  00000+0 0  9995"
-    tle_line2: "2 40129  49.1552 282.3666 1643429 170.9672 192.3990  1.85520331 76013"
+  # satellite1: 
+  #   name: "GSAT0201 (GALILEO 5)"    
+  #   tle_line1: "1 40128U 14050A   25293.02891527 -.00000069  00000+0  00000+0 0  9994"
+  #   tle_line2: "2 40128  49.1381 283.2505 1642820 170.2404 193.3914  1.85519627 73867"
+  # satellite2: 
+  #   name: GSAT0202 (GALILEO 6)    
+  #   tle_line1: "1 40129U 14050B   25292.20739736 -.00000067  00000+0  00000+0 0  9995"
+  #   tle_line2: "2 40129  49.1552 282.3666 1643429 170.9672 192.3990  1.85520331 76013"
 
 

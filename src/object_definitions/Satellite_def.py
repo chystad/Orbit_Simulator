@@ -18,6 +18,11 @@ class Satellite:
             tle_line1: str,
             tle_line2: str,
             tle: TLE,
+            m_s: float, # [kg] Satellite mass
+            C_D: float, # Drag coefficient
+            A_D: float, # [m^2] Cross-section area perpendicular to the velocity
+            C_R: float, # Radiation pressure coefficient (0 reflecting, 1 absorbing)
+            A_srp: float, # [m^2] Cross-section area perpendicular to the Sun-vector 
             init_pos: Optional[NDArray[np.float64]],
             init_vel: Optional[NDArray[np.float64]]
         ):

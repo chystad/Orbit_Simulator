@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from PIL import PngImagePlugin
 from pathlib import Path
+import cartopy.crs as ccrs
+import pymap3d as pm
+from datetime import datetime, timedelta, timezone
 
 from object_definitions.Config_def import Config
 from object_definitions.SimData_def import SimData
@@ -56,17 +59,20 @@ def plot(cfg: Config) -> None:
     ############
     # Plotting #
     ############
-    # Comment/Uncomment the plotting functions manually to plot the the different plots
 
-    plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
+    # plot_groundtrack_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    # plot_simulator_pos_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
+
+    plot_simulator_state_diff(cfg, skf_sim_data, bsk_sim_data)
     
     # plot_rel_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    # plot_simulator_rel_pos_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_simulator_rel_state_diff(cfg, skf_sim_data, bsk_sim_data)
 
     # plot_altitude_comparison(cfg, skf_sim_data, bsk_sim_data)
+
+    plot_simulator_state_abs_diff(cfg, skf_sim_data, bsk_sim_data)
 
     
     
@@ -74,6 +80,105 @@ def plot(cfg: Config) -> None:
 #################################
 # Plotting function definitions #
 #################################
+
+def plot_groundtrack_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+    """
+    Plot the ground-track (projected trajectory on Earth) for each satellite,
+    comparing Skyfield (red) and Basilisk (green).
+
+    Positions are given in ECI and converted to geodetic (lat, lon) using pymap3d.eci2geodetic.
+    One map figure is generated per satellite.
+    """
+    main_plt_identifier = "GroundTrack"  # Used in saved plot name
+
+    skf_list = skf_sim_data.sim_data
+    bsk_list = bsk_sim_data.sim_data
+
+    if len(skf_list) != len(bsk_list):
+        raise ValueError(
+            f"Satellite count mismatch: SKF has {len(skf_list)}, BSK has {len(bsk_list)}."
+        )
+
+    n_sats = len(skf_list)
+    if n_sats == 0:
+        return
+
+    # Epoch for t = 0 (assumed to live in cfg; adjust if you store it elsewhere)
+    epoch, duration, deltaT = get_simulation_time(cfg) 
+
+    for i in range(n_sats):
+        skf = skf_list[i]
+        bsk = bsk_list[i]
+
+        # Shape sanity checks
+        if skf.pos.shape[0] != 3 or bsk.pos.shape[0] != 3:
+            raise ValueError(f"pos must be shape (3, n) for satellite index {i}.")
+        if skf.time.ndim not in (1, 2) or bsk.time.ndim not in (1, 2):
+            raise ValueError(f"time must be 1D or (1, n) for satellite index {i}.")
+
+        # Flatten times to 1D
+        t_skf_sec = np.ravel(skf.time)
+        t_bsk_sec = np.ravel(bsk.time)
+
+        # Convert to datetime arrays for pymap3d
+        t_skf_dt = [epoch + timedelta(seconds=float(t)) for t in t_skf_sec]
+        t_bsk_dt = [epoch + timedelta(seconds=float(t)) for t in t_bsk_sec]
+
+        # Unpack ECI position components
+        x_skf, y_skf, z_skf = skf.pos[0, :], skf.pos[1, :], skf.pos[2, :]
+        x_bsk, y_bsk, z_bsk = bsk.pos[0, :], bsk.pos[1, :], bsk.pos[2, :]
+
+        # ECI -> geodetic (lat [deg], lon [deg], alt [m])
+        # pymap3d will broadcast over arrays
+        lat_skf, lon_skf, _ = pm.eci2geodetic(x_skf, y_skf, z_skf, t_skf_dt)
+        lat_bsk, lon_bsk, _ = pm.eci2geodetic(x_bsk, y_bsk, z_bsk, t_bsk_dt)
+
+        # Create map figure for this satellite
+        fig = plt.figure(figsize=(PLT_WIDTH, PLT_HEIGHT))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+
+        # Background: simple stock image + coastlines
+        ax.stock_img()
+        ax.coastlines()
+        ax.gridlines(draw_labels=True, linestyle="--", alpha=0.4)
+
+        # Plot ground tracks
+        sat_name = (
+            skf.satellite_name
+            if getattr(skf, "satellite_name", None)
+            else f"Satellite {i+1}"
+        )
+
+        # Skyfield: red
+        ax.plot(
+            lon_skf,
+            lat_skf,
+            color="red",
+            linewidth=1.5,
+            linestyle="-",
+            label=f"SKF {sat_name}",
+            transform=ccrs.Geodetic(),
+        )
+
+        # Basilisk: green
+        ax.plot(
+            lon_bsk,
+            lat_bsk,
+            color="green",
+            linewidth=1.5,
+            linestyle=":",
+            label=f"BSK {sat_name}",
+            transform=ccrs.Geodetic(),
+        )
+
+        ax.set_title(f"Ground track comparison — {sat_name}")
+        ax.legend(loc="lower left")
+
+        fig = plt.gcf()
+        plt_identifier = f"{main_plt_identifier}_{sat_name}"
+        conditional_save_plot(cfg, fig, plt_identifier)
+        conditional_show_plot(cfg)
+
 
 def plot_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
@@ -264,7 +369,7 @@ def plot_rel_pos_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: Si
         conditional_show_plot(cfg)
     
 
-def plot_simulator_pos_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+def plot_simulator_state_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     """
     For each satellite i, create a figure with two stacked subplots:
       Top:  (bsk.pos - skf.pos) components over time
@@ -364,7 +469,7 @@ def plot_simulator_pos_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: Si
         conditional_show_plot(cfg)
 
 
-def plot_simulator_rel_pos_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+def plot_simulator_rel_state_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
     # TODO: Fix chat language
     """
     Plot simulator differences between relative RTN vectors (BSK - SKF).
@@ -603,6 +708,115 @@ def plot_altitude_comparison(cfg: Config, skf_sim_data: SimData, bsk_sim_data: S
     conditional_show_plot(cfg)
 
 
+def plot_simulator_state_abs_diff(cfg: Config, skf_sim_data: SimData, bsk_sim_data: SimData) -> None:
+    """
+    For each satellite i, create a figure with two stacked subplots:
+      Top:    absolute difference in position magnitude  | |r_BSK| - |r_SKF| |
+      Bottom: absolute difference in velocity magnitude | |v_BSK| - |v_SKF| |
+    BSK data are interpolated onto the SKF time grid if their time vectors differ.
+    """
+    main_plt_identifier = "SimAbsDiff"  # Part of the saved figure's name
+
+    skf_list = skf_sim_data.sim_data
+    bsk_list = bsk_sim_data.sim_data
+    data_processor = DataProcessor()
+
+    if len(skf_list) != len(bsk_list):
+        raise ValueError(
+            f"Satellite count mismatch: SKF={len(skf_list)}, BSK={len(bsk_list)}"
+        )
+
+    n_sats = len(skf_list)
+    if n_sats == 0:
+        return
+
+    for i in range(n_sats):
+        skf = skf_list[i]
+        bsk = bsk_list[i]
+
+        # Basic shape checks
+        if skf.pos.shape[0] != 3 or bsk.pos.shape[0] != 3:
+            raise ValueError(f"[sat {i}] pos must be shape (3, n)")
+        if skf.vel.shape[0] != 3 or bsk.vel.shape[0] != 3:
+            raise ValueError(f"[sat {i}] vel must be shape (3, n)")
+
+        # Flatten/validate times and ensure increasing for interpolation
+        t_skf = np.ravel(skf.time) / (60 * 60)  # Time [hours]
+        t_bsk = np.ravel(bsk.time) / (60 * 60)  # Time [hours]
+        if t_skf.size != skf.pos.shape[1] or t_skf.size != skf.vel.shape[1]:
+            raise ValueError(
+                f"[sat {i}] SKF time length must match pos/vel columns"
+            )
+        if t_bsk.size != bsk.pos.shape[1] or t_bsk.size != bsk.vel.shape[1]:
+            raise ValueError(
+                f"[sat {i}] BSK time length must match pos/vel columns"
+            )
+
+        t_skf, skf_pos = data_processor.ensure_increasing(t_skf, skf.pos)
+        _,     skf_vel = data_processor.ensure_increasing(t_skf, skf.vel)
+
+        t_bsk, bsk_pos = data_processor.ensure_increasing(t_bsk, bsk.pos)
+        _,     bsk_vel = data_processor.ensure_increasing(t_bsk, bsk.vel)
+
+        # Interpolate BSK onto SKF time grid if needed
+        if t_bsk.size != t_skf.size or not np.allclose(t_bsk, t_skf):
+            bsk_pos_on_skf = data_processor.interp_3xn(t_bsk, bsk_pos, t_skf)
+            bsk_vel_on_skf = data_processor.interp_3xn(t_bsk, bsk_vel, t_skf)
+        else:
+            bsk_pos_on_skf = bsk_pos
+            bsk_vel_on_skf = bsk_vel
+
+        # Magnitudes
+        skf_pos_norm = np.linalg.norm(skf_pos, axis=0)
+        bsk_pos_norm = np.linalg.norm(bsk_pos_on_skf, axis=0)
+        skf_vel_norm = np.linalg.norm(skf_vel, axis=0)
+        bsk_vel_norm = np.linalg.norm(bsk_vel_on_skf, axis=0)
+
+        # Absolute scalar differences
+        dpos = bsk_pos_norm - skf_pos_norm
+        dvel = bsk_vel_norm - skf_vel_norm
+
+        # Create figure with two stacked subplots; no explicit numbering to avoid conflicts
+        fig, axes = plt.subplots(
+            nrows=2, ncols=1, sharex=True, figsize=(PLT_WIDTH, PLT_HEIGHT)
+        )
+        ax_pos, ax_vel = axes
+
+        # Top: absolute position magnitude diff
+        ax_pos.plot(
+            t_skf,
+            dpos,
+            label="| |r_BSK| - |r_SKF| |",
+            linewidth=1.8,
+            color="#d62728",  # red
+        )
+        ax_pos.set_ylabel("Abs Δ|r| (m)")
+        ax_pos.grid(True, alpha=0.3)
+        ax_pos.legend(ncol=1)
+
+        # Bottom: absolute velocity magnitude diff
+        ax_vel.plot(
+            t_skf,
+            dvel,
+            label="| |v_BSK| - |v_SKF| |",
+            linewidth=1.8,
+            color="#1f77b4",  # blue
+        )
+        ax_vel.set_xlabel("Time (hours)")
+        ax_vel.set_ylabel("Abs Δ|v| (m/s)")
+        ax_vel.grid(True, alpha=0.3)
+        ax_vel.legend(ncol=1)
+
+        sat_name = getattr(skf, "satellite_name", None) or f"Satellite {i+1}"
+        fig.suptitle(f"Simulator absolute difference — {sat_name}")
+
+        fig = plt.gcf()
+        plt_identifier = f"{main_plt_identifier}_{sat_name}"
+        conditional_save_plot(cfg, fig, plt_identifier)
+        conditional_show_plot(cfg)
+
+
+
 ########################################
 # Plotting helper function definitions #
 ########################################
@@ -664,3 +878,35 @@ def quiet_plots() -> None:
     logging.getLogger("PIL").setLevel(logging.WARNING)
     logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 
+
+def get_simulation_time(cfg: Config) -> tuple[datetime, int, int]:
+    """
+    Repurposed from 'SkyfieldSimulator.get_skf_simulation_time
+    Parses and converts simulation time parameters from default config into skyfield-compatible types.
+
+    RETURNS:
+        startTime       (datetime) utc time
+        duration        (float) seconds
+        deltaT          (int) seconds
+    """
+    cfg_startTime = cfg.startTime
+    cfg_duration = cfg.simulationDuration
+    cfg_deltaT = cfg.s_set.deltaT
+
+    # Parse simulation starttime and convert into a UTC datetime object
+    try:
+        startTime = datetime.strptime(cfg_startTime, "%d.%m.%Y %H:%M:%S").replace(tzinfo=timezone.utc)
+    except:
+        raise ValueError("Failed to convert config parameter 'startTime' to a datetime object.")
+    
+    # Convert cfg_duration float(hours) -> int(seconds)
+    duration = int(3600 * cfg_duration) 
+    if duration < (3600 * cfg_duration):
+        raise ValueError("Type conversion float -> int for 'skf_duration' caused a reduction in its value!")
+
+    # deltaT
+    deltaT = int(cfg_deltaT)
+    if deltaT < cfg_deltaT:
+        raise ValueError("Type conversion float -> int for 'skf_deltaT' caused a reduction in its value!")
+    
+    return startTime, duration, deltaT

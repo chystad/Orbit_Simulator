@@ -1,10 +1,11 @@
 # These configuration options are currently in configs/default.yaml
 BASILISK_SIMULATION:
-  deltaT: 50 # Solver time step [seconds]
+  deltaT: 10 # Solver time step [seconds]
+  integrator: "RK45" # [RK4(Default), RK45, RK78]
   sphericalHarmonicsDegree: 4 # int
   useSphericalHarmonics: true
   useExponentialDensityDrag: true
   useSRP: false
-  useSun3rdBody: true 
-  useMoon3rdBody: true
+  useSun3rdBody: false 
+  useMoon3rdBody: false
   override_skf_initial_state: false

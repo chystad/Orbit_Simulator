@@ -12,7 +12,7 @@ from object_definitions.SimData_def import SimData, SimObjData
 
 from Basilisk import __path__
 from Basilisk.simulation import (spacecraft, radiationPressure, spiceInterface, eclipse,  
-                                exponentialAtmosphere, dragDynamicEffector)
+                                exponentialAtmosphere, dragDynamicEffector, svIntegrators)
 from Basilisk.utilities import (SimulationBaseClass, macros, orbitalMotion,
                                 simIncludeGravBody, unitTestSupport, vizSupport)
 
@@ -67,6 +67,9 @@ class BasiliskSimulator:
 
         # Set sample time (same as 'deltaT' in basilisk simulation config)
         samplingTime = unitTestSupport.samplingTime(simulationDuration, simulationTimeStep, numDataPoints)
+
+        # Initialize integrators
+        self.integrators = []
 
         # path to basilisk. Used to fetch predesigned models
         bskPath = __path__[0]
@@ -135,7 +138,7 @@ class BasiliskSimulator:
             # Initialize spacecraft object
             scObj = spacecraft.Spacecraft()
             scObj.ModelTag = sat.name
-            scObj.hub.mHub = getattr(sat, "m", 6.0)  # kg # TODO: Config param
+            scObj.hub.mHub = getattr(sat, "m_s", 6.0)
 
             # Add spacecraft object to the simulation process
             self.scSim.AddModelToTask(self.simTaskName, scObj)
@@ -171,6 +174,10 @@ class BasiliskSimulator:
             # ---- SRP effector (cannonball) ----
             # Register this spacecraft with the eclipse model to get its own eclipse msg
             scObj = self.conditional_srp_effector(sat, scObj, sunMsg, eclipseObj)
+
+            
+            # ---- Set object integration method ----
+            scObj = self.conditional_object_integrator(scObj)
             
            
             # ---- Define and append scRecorders and scObjects ----
@@ -419,8 +426,8 @@ class BasiliskSimulator:
 
         # Set core parameters
         core = dragDynamicEffector.DragBaseData()
-        core.dragCoeff = getattr(sat, "Cd", 2.2)
-        core.projectedArea = getattr(sat, "A_drag", 100)
+        core.dragCoeff = getattr(sat, "C_D", 2.2)
+        core.projectedArea = getattr(sat, "A_D", 0.06)
         drag.coreParams = core
 
         # Subscribe to density from this spacecraft's atmosphere message
@@ -521,7 +528,7 @@ class BasiliskSimulator:
         # Define srp
         srp = radiationPressure.RadiationPressure()
         srp.setUseCannonballModel()
-        srp.coefficientReflection = getattr(sat, "Cr", 1.0)
+        srp.coefficientReflection = getattr(sat, "C_R", 1.0)
         srp.area = getattr(sat, "A_srp", 0.06)  
 
         # Subscribe to Sun ephemeris + this spacecraft’s eclipse factor
@@ -531,6 +538,28 @@ class BasiliskSimulator:
         # Mount SRP onto the spacecraft and schedule it
         scObj.addDynamicEffector(srp)
         self.scSim.AddModelToTask(self.simTaskName, srp)
+
+        return scObj
+
+
+    def conditional_object_integrator(self, scObj: spacecraft.Spacecraft) -> spacecraft.Spacecraft:
+        
+        integration_method = self.cfg.b_set.integrator
+
+        # Select integration method
+        match integration_method:
+            case "RKF45":
+                integratorObj = svIntegrators.svIntegratorRKF45(scObj)
+            case "RKF78":
+                integratorObj = svIntegrators.svIntegratorRKF78(scObj)
+            case _:
+                return scObj # Use standard integration method RK4
+        
+        # Set the object's non-default integration method
+        scObj.setIntegrator(integratorObj)
+
+        # Keep a reference so it doesn't get CE'ed
+        self.integrators.append(integratorObj)
 
         return scObj
 
