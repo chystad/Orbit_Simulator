@@ -40,29 +40,16 @@ if __name__ == "__main__":
 # TODO
 """
 Disturbance:
-* Implement drag with exponentially decaying atmosphere
-
-* Also include J3 and J4 terms in Basilisk gravitational disturbance
-
-* Implement 3rd body pull from the moon (and check sun)
-
-* Implement option to toggle disturbance effect from solar radiation pressure
-
-* Implement functionality to log force from SRP
+* Implement functionality to log disturbance forces
 
 
 Plotting:
 * Generate nadir projection map
-
 * Change y-axis scaling to km or logarithmic
-
-* Create plot to show altitude
-
+* Add absolute simulator disagreements
 * Change plot colors where the two simulation outputs are shown in the same plot
 
 
 Simulator Misk:
 * Generate timestamped .bin files for Vizard without overwriting old data (like it is already implemented in sim_data)
-
-* Make option available to toggle displaying plots
 """
