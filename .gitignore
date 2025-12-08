@@ -1,5 +1,5 @@
 # Ignore all files in /data/
-data/
+data/sim_plt
 
 # Ignore all files in /archive/
 archive/

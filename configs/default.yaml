@@ -1,16 +1,16 @@
 # Global simulation configuration settings
 SIMULATION:
-  startTime: "02.04.2025 12:00:00" # UTC time
-  simulationDuration: 1.0 # hours
+  startTime: "23.10.2025 22:19:30" # UTC time
+  simulationDuration: 336.0 # hours
   tle_export_path: "data/tle_files/" # TODO: move to Config_def
   use_old_skf_data: true # Skip Skyfield simulation (used when you want to use the same SGP4 baseline to compare against multiple Basilisk runs)
-  old_skf_data_timestamp: "20251208_122459" # Timestamp WITHOUT "_skf" at the end
+  old_skf_data_timestamp: "20251208_134701" # Timestamp WITHOUT "_skf" at the end
 
 # Plotting options
 PLOTTING:
-  show_plots: true
+  show_plots: false
   save_plots: true
-  bypass_sim_to_plot: false
+  bypass_sim_to_plot: true
   data_timestamp_to_plot: "20251129_015711" # Only plots this data if bypass_sim_to_plot == true
   plot_prev_sim: false # TODO: NOT IMPLEMENTED. Also, 'implement func that skips simulations if this is true
 
@@ -23,7 +23,7 @@ SATELLITES:
     tle_line2: "2 51053  97.3166   6.7052 0004161  83.3535 276.8189 15.48851464210108" 
     m_s: 6.0  # [kg] Satellite mass
     C_D: 3  # Drag coefficient
-    A_D: 10000000 # [m^2] Cross-section area perpendicular to the velocity
+    A_D: 0.06 # [m^2] Cross-section area perpendicular to the velocity
     C_R: 1.0  # Radiation pressure coefficient (0 reflecting, 1 absorbing)
     A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector 
   satellite2:
