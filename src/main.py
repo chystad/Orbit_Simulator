@@ -17,8 +17,11 @@ def simualte_satellite_orbits():
         # Initialize Skyfield SGP4 Propagator
         skf = SkyfieldSimulator(cfg)
 
-        # Run Skyfield SGP4 propagator
-        skf.run()
+        # Bypass Skyfield simulation if old data should be used instead
+        if not cfg.use_old_skf_data:
+
+            # Run Skyfield SGP4 propagator
+            skf.run()
 
         # Extract initial states @ simulation startTime and update cfg.satellites
         skf.extract_initial_states_and_update_satellites(cfg)
@@ -44,7 +47,6 @@ Disturbance:
 
 
 Plotting:
-* Generate nadir projection map
 * Change y-axis scaling to km or logarithmic
 * Add absolute simulator disagreements
 * Change plot colors where the two simulation outputs are shown in the same plot
@@ -52,4 +54,5 @@ Plotting:
 
 Simulator Misk:
 * Generate timestamped .bin files for Vizard without overwriting old data (like it is already implemented in sim_data)
+* Fix multiple loading and writing of the same Skyfield data when 'use_old_skf_data' = True
 """

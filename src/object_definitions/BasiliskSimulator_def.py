@@ -195,6 +195,12 @@ class BasiliskSimulator:
             # self.srpRecorders.append(srpRec)       
 
 
+        # Output Vizard .bin file
+        viz = vizSupport.enableUnityVisualization(self.scSim, self.simTaskName, self.scObjects,
+                                                saveFile=VIZARD_SAVE_PATH
+                                                # liveStream=True
+                                                )
+
 
         # initialize Simulation:  This function runs the self_init()
         # and reset() routines on each module.
@@ -208,7 +214,6 @@ class BasiliskSimulator:
     def run(self) -> None:
         # Execute the simulation
         logging.debug("Basilisk simulation running...")
-
        
         self.scSim.ExecuteSimulation()
         # Note that this module simulates both the translational and rotational motion of the spacecraft.
@@ -289,9 +294,6 @@ class BasiliskSimulator:
             * Vizard .bin file in <VIZARD_SAVE_PATH>
             * Simulation data .h5 file named '<cfg.timestamp_str>_bsk.h5' stored in <DATA_SAVE_FOLDER_PATH>
         """
-        # Output Vizard .bin file
-        viz = vizSupport.enableUnityVisualization(self.scSim, self.simTaskName, self.scObjects,
-                                                saveFile=VIZARD_SAVE_PATH)
 
         # Check that simulation data has been stored
         if self.sim_data is None:

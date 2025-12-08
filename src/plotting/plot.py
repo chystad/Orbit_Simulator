@@ -62,9 +62,9 @@ def plot(cfg: Config) -> None:
 
     # plot_groundtrack_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    # plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
+    plot_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    plot_simulator_state_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_simulator_state_diff(cfg, skf_sim_data, bsk_sim_data)
     
     # plot_rel_pos_comparison(cfg, skf_sim_data, bsk_sim_data)
 
@@ -72,7 +72,7 @@ def plot(cfg: Config) -> None:
 
     # plot_altitude_comparison(cfg, skf_sim_data, bsk_sim_data)
 
-    plot_simulator_state_abs_diff(cfg, skf_sim_data, bsk_sim_data)
+    # plot_simulator_state_abs_diff(cfg, skf_sim_data, bsk_sim_data)
 
     
     

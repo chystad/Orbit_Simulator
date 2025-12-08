@@ -60,12 +60,15 @@ class Satellite:
 
         logging.debug(f"Extracting initial states for {sim_object_data.satellite_name}")
 
+        # Normalize time array to always be 1D: shape (n,)
+        time = np.asarray(sim_object_data.time).ravel()
+
         # Verify that the simulation data is connected to the Satellite object
         if not sim_object_data.satellite_name == self.name:
             raise ValueError(f"Mismatch between sim_object_data satellite name ({sim_object_data.satellite_name}) and self.name ({self.name})")
         
         # Verify that the first states are evaluated at t = 0.0 second
-        if not sim_object_data.time[0] == 0:
+        if not time[0] == 0:
             raise ValueError(f"The first element in sim_object_data.time is nonzero: {sim_object_data.time[0]}")
         
         # Extract initial states

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from object_definitions.Config_def import Config
 from object_definitions.Satellite_def import Satellite
 from object_definitions.SimData_def import SimObjData, SimData
+from plotting.DataLoader_def import DataLoader
 
 from skyfield.timelib import Time
 from skyfield.api import EarthSatellite, load
@@ -171,6 +172,32 @@ class SkyfieldSimulator():
         Extracts the initial states for each satellite in self.sim_data, 
         and calls a function to update their corresponding Satellite object in config.satellites
         """
+
+        if cfg.use_old_skf_data:
+            logging.debug("Skipping the Skyfield simulation. Old Skyfield simulation data will be loaded instead...")
+
+            # Initialize data loader and processor objects
+            data_loader = DataLoader()
+
+            # Get the old skyfield datafile name 
+            search_str = cfg.old_skf_data_timestamp + "_skf"
+            matching_datafile_names = data_loader.get_datafiles_by_timestamp(search_str)
+            if len(matching_datafile_names) > 1:
+                raise ValueError(f"Found more than one match from the old skyfield data timestamp. Matches found: {matching_datafile_names}")
+            elif len(matching_datafile_names) == 0:
+                raise ValueError(f"Found no old sSkyfield datafile name matches for: {search_str}")
+            old_skf_data_filename = matching_datafile_names[0]
+
+            # Load old Skyfield data
+            old_skf_sim_data = data_loader.load_sim_data_file(old_skf_data_filename)
+
+            # set sim_data attribute 
+            self.sim_data = old_skf_sim_data
+
+            # Write simulation data to file
+            self.output_data()
+
+
         # Verify that simulation data has been stored in self.sim_data
         if self.sim_data == None:
             raise ValueError("No simulation data has been stored in SkyfieldSimulation.sim_data")

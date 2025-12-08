@@ -1,8 +1,10 @@
 # Global simulation configuration settings
 SIMULATION:
   startTime: "02.04.2025 12:00:00" # UTC time
-  simulationDuration: 168.0 # hours
+  simulationDuration: 1.0 # hours
   tle_export_path: "data/tle_files/" # TODO: move to Config_def
+  use_old_skf_data: true # Skip Skyfield simulation (used when you want to use the same SGP4 baseline to compare against multiple Basilisk runs)
+  old_skf_data_timestamp: "20251208_122459" # Timestamp WITHOUT "_skf" at the end
 
 # Plotting options
 PLOTTING:
@@ -16,18 +18,18 @@ PLOTTING:
 # Satellite #1 will be considered as the formation Chef/Leader satellite 
 SATELLITES:
   satellite1:
-    name: "Chief"
-    tle_line1: "1 51053U 22002BX  25308.62091721  .00030597  00000+0  55283-3 0  9995"    
-    tle_line2: "2 51053  97.3162  18.5553 0003625  48.0410 312.1150 15.49656913211910"   
+    name: "HYPSO-1"             
+    tle_line1: "1 51053U 22002BX  25296.93021535  .00034531  00000+0  64114-3 0  9996"
+    tle_line2: "2 51053  97.3166   6.7052 0004161  83.3535 276.8189 15.48851464210108" 
     m_s: 6.0  # [kg] Satellite mass
     C_D: 3  # Drag coefficient
     A_D: 10000000 # [m^2] Cross-section area perpendicular to the velocity
     C_R: 1.0  # Radiation pressure coefficient (0 reflecting, 1 absorbing)
     A_srp: 0.06 # [m^2] Cross-section area perpendicular to the Sun-vector 
   satellite2:
-    name: "Follower"
-    tle_line1: "1 60531U 24149BR  25308.17016602  .00005181  00000+0  45510-3 0  9998"    
-    tle_line2: "2 60531  97.7074  22.6954 0001936  74.1043 286.0392 14.97007322 66363" 
+    name: "HYPSO-1-follower"             
+    tle_line1: "1 51053U 22002BX  25296.93021535  .00034531  00000+0  64114-3 0  9996"
+    tle_line2: "2 51053  97.3166   6.7052 0004161  83.3535 266.8189 15.48851464210108"    
     m_s: 6.0  # [kg] Satellite mass
     C_D: 2.2  # Drag coefficient
     A_D: 0.06 # [m^2] Cross-section area perpendicular to the velocity
@@ -42,6 +44,18 @@ SKYFIELD:
 BASILISK:
   config_path: configs/overrides/basilisk.yaml
 
+
+
+
+
+
+
+    # name: "Chief"
+    # tle_line1: "1 51053U 22002BX  25308.62091721  .00030597  00000+0  55283-3 0  9995"    
+    # tle_line2: "2 51053  97.3162  18.5553 0003625  48.0410 312.1150 15.49656913211910"  
+    # name: "Follower"
+    # tle_line1: "1 60531U 24149BR  25308.17016602  .00005181  00000+0  45510-3 0  9998"    
+    # tle_line2: "2 60531  97.7074  22.6954 0001936  74.1043 286.0392 14.97007322 66363" 
    
 
   # satellite1:
